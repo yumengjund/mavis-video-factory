@@ -1,0 +1,18 @@
+{
+  "name": "asset-ingestion-runtime",
+  "version": "1.5.2-hardened-patch1",
+  "stage": 3,
+  "extends": "asset-acquisition-engine-v2",
+  "capabilities": {
+    "real_time_fetch": {"enabled": true, "timeout_ms": 30000, "max_concurrent": 8},
+    "social_ingestion_layer": {"platforms": ["douyin", "xiaohongshu", "bilibili", "weibo"], "rate_limit_per_platform": 5, "cooldown_ms": 2000},
+    "api_hybrid": {"pexels": {"endpoint": "https://api.pexels.com/videos/search", "per_page": 15}, "pixabay": {"endpoint": "https://pixabay.com/api/videos/", "per_page": 20}, "unsplash": {"endpoint": "https://api.unsplash.com/search/photos", "per_page": 15}},
+    "download_caching": {"cache_dir": "cache/assets/", "ttl_hours": 72, "max_cache_gb": 5.0},
+    "watermark_flagging": {"score_threshold": 30, "rejection_policy": "reject_if_above_threshold", "pre_render_filter": true},
+    "normalization": {"target_codec": "h264", "target_extension": "mp4", "min_resolution": "720p", "max_resolution": "4k"},
+    "cold_start_policy": "try_social→api→local→ai_strict_last"
+  },
+  "consumes": {"shot_list": "from_stage_2", "search_keywords": ["string"]},
+  "produces": {"raw_assets": [{"asset_id": "string", "source_type": "social|api|local|ai", "source_platform": "string", "source_url": "string", "file_path": "string", "duration": "float", "resolution": "string", "fps": "float", "codec": "string", "watermark_score": "int", "trend_score": "int", "license_risk_score": "int", "normalized": "bool", "cached": "bool", "hash": "string"}], "ingestion_log": {"total_attempted": "int", "social_count": "int", "api_count": "int", "local_count": "int", "ai_count": "int", "rejected_watermark": "int", "rejected_license": "int", "rejected_quality": "int", "accepted_total": "int"}},
+  "env_keys": ["PEXELS_API_KEY", "PIXABAY_API_KEY", "UNSPLASH_ACCESS_KEY"]
+}

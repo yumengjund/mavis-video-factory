@@ -1,0 +1,99 @@
+{
+  "document": "production_constraints_v1.4.1",
+  "version": "1.4.1",
+  "date": "2026-06-25",
+  "description": "V1.4.1 生产环境强制约束。任何违反将导致 Production Ready = FALSE。",
+  "constraints": {
+    "asset_integrity": {
+      "no_mock_assets": {
+        "rule": "禁止使用 ffmpeg color/drawbox/mandelbrot/testsrc 等生成测试素材作为最终产物",
+        "severity": "CRITICAL",
+        "action": "REJECT_PIPELINE"
+      },
+      "no_placeholder": {
+        "rule": "禁止使用纯色/渐变/占位图替代真实素材",
+        "severity": "CRITICAL",
+        "action": "REJECT_PIPELINE"
+      },
+      "watermark_rejection": {
+        "rule": "任何检测到水印的素材直接淘汰，不允许裁剪/模糊绕过",
+        "severity": "HIGH",
+        "action": "REMOVE_ASSET"
+      },
+      "minimum_resolution": {
+        "rule": "素材分辨率 ≥ 1920x1080",
+        "severity": "HIGH",
+        "action": "REMOVE_ASSET"
+      },
+      "commercial_usage_only": {
+        "rule": "仅使用有商用许可的素材（Pexels/Pixabay License 已满足）",
+        "severity": "MEDIUM",
+        "action": "REMOVE_ASSET"
+      }
+    },
+    "api_management": {
+      "key_validation_on_startup": {
+        "rule": "每次 Pipeline 启动前必须验证所有 API Key 状态",
+        "severity": "CRITICAL",
+        "action": "BLOCK_IF_ALL_FAIL"
+      },
+      "graceful_degradation": {
+        "rule": "部分 API 不可用时使用剩余可用源，全部不可用时报告用户",
+        "severity": "HIGH",
+        "action": "CONTINUE_WITH_WARNING"
+      },
+      "rate_limit_respect": {
+        "rule": "尊重 API 速率限制，不暴力重试",
+        "severity": "MEDIUM",
+        "action": "BACKOFF_AND_RETRY"
+      }
+    },
+    "quality_gates": {
+      "retention_score_min_85": {
+        "rule": "留存率预测 <85 自动返回 Story Architect 重优化，最多重试 2 次",
+        "severity": "CRITICAL",
+        "action": "RETRY_OR_FAIL"
+      },
+      "subtitle_quality_min_85": {
+        "rule": "字幕质量 <85 自动重生成",
+        "severity": "HIGH",
+        "action": "RETRY_OR_FAIL"
+      },
+      "transition_quality_min_85": {
+        "rule": "转场质量 <85 自动重优化",
+        "severity": "HIGH",
+        "action": "RETRY_OR_FAIL"
+      },
+      "qa_score_min_85": {
+        "rule": "QA 总分 <85 整条 Pipeline 标记 FAIL",
+        "severity": "CRITICAL",
+        "action": "REJECT_PIPELINE"
+      }
+    },
+    "cache_integrity": {
+      "cache_first_lazy_load": {
+        "rule": "API 失败时查询本地缓存，缓存命中则继续生产",
+        "severity": "MEDIUM",
+        "action": "USE_CACHE"
+      },
+      "no_stale_cache": {
+        "rule": "缓存有效期 30 天，过期自动清理",
+        "severity": "LOW",
+        "action": "EVICT"
+      }
+    }
+  },
+  "version_protection": {
+    "preserve_all_old_versions": true,
+    "protected_paths": [
+      "output/v1.4-test/**",
+      "output/shanghai-v1.3-test/**",
+      "output/shanghai-v2-test/**",
+      "output/shanghai-test/**",
+      "output/Universal-AIGC-Video-Factory-v1.4.json",
+      "output/workflow-schema-v1.4.json",
+      "output/pipeline-protocol-v1.3.json",
+      "output/workflow-schema-v1.3.json"
+    ]
+  }
+}

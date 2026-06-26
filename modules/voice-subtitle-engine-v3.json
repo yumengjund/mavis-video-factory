@@ -1,0 +1,8 @@
+{
+  "name": "voice-subtitle-engine-v3", "version": "1.5.2-hardened", "stage": 6,
+  "layers": {"hook_0_3s": {"purpose": "attention", "style": "large_centered_high_contrast", "max_chars": 8}, "info_3_10s": {"purpose": "information", "style": "bottom_third_clean", "max_chars": 15}, "emotion_10_20s": {"purpose": "amplify", "style": "animated_reveal_emotion_mapped", "max_chars": 12}, "cta_20_30s": {"purpose": "action", "style": "centered_scale_pop_urgent", "max_chars": 10}},
+  "rules": {"safe_zone_detection": "mandatory", "never_cover_subject": true, "bilingual_default": "en_cn", "occlusion_threshold": 0.15},
+  "consumes": {"script": "from_stage_2", "timeline": "from_stage_5"},
+  "produces": {"voice_mp3": "string", "subtitle_json": "string", "occlusion_report": {}},
+  "qa_threshold": 90
+}

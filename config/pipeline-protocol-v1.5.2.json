@@ -1,0 +1,6 @@
+{
+  "version": "1.5.2-hardened",
+  "stages": 15,
+  "pipeline": ["viral-intelligence-engine", "creative-strategy-agent", "story-architect-agent", "asset-acquisition-engine-v2", "vision-scorer", "timeline-compiler", "voice-subtitle-engine-v3", "transition-engine-v2", "retention-predictor-v2", "compliance-engine", "render-orchestrator", "platform-optimizer", "seo-engine", "creator-memory-writer", "qa-final-gate"],
+  "branch_policy": "single_pipeline_only"
+}

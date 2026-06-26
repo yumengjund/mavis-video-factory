@@ -1,0 +1,27 @@
+{
+  "database": "asset_intelligence/database/assets.db",
+  "version": "1.4.1",
+  "created": "2026-06-25T23:07:00+08:00",
+  "total_assets": 0,
+  "categories": {
+    "videos": {"count": 0, "total_size_bytes": 0},
+    "images": {"count": 0, "total_size_bytes": 0},
+    "thumbnails": {"count": 0, "total_size_bytes": 0},
+    "ai_generated": {"count": 0, "total_size_bytes": 0}
+  },
+  "by_source": {
+    "pexels": {"available": "pending_check", "count": 0},
+    "pixabay": {"available": "pending_check", "count": 0},
+    "unsplash": {"available": "pending_check", "count": 0},
+    "local_cache": {"count": 0},
+    "user_authorized": {"count": 0},
+    "ai_generated": {"count": 0}
+  },
+  "cache_statistics": {
+    "total_size_bytes": 0,
+    "oldest_entry": null,
+    "newest_entry": null,
+    "expired_entries": 0
+  },
+  "last_updated": "2026-06-25T23:07:00+08:00"
+}

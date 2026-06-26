@@ -1,0 +1,8 @@
+{
+  "name": "compliance-engine", "version": "1.5.2-hardened", "stage": 9,
+  "position": "pre_render_gate",
+  "checks": ["copyright", "watermark", "platform_reuse_risk", "license_status", "source_trace"],
+  "consumes": {"raw_assets": "from_stage_3", "ranked_assets": "from_stage_4"},
+  "produces": {"compliance_report": {"status": "PASS|FAIL", "violations": ["string"]}},
+  "fail_action": "STOP→return_to_stage_3"
+}

@@ -1,0 +1,57 @@
+{
+  "name": "content-ingestion-engine",
+  "version": "1.5.2-hardened-patch2",
+  "stage": 3,
+  "replaces_fallback": "no_ffmpeg_only_mode",
+  "engines": {
+    "douyin_fetch_engine": {
+      "platform": "douyin",
+      "search_endpoint": "https://www.douyin.com/search/{keyword}",
+      "video_extraction_methods": ["waterfall_api", "page_parse", "share_link_resolve"],
+      "retry_config": {"max_retries": 3, "backoff_ms": 2000, "jitter_ms": 500},
+      "pagination": {"max_pages": 5, "videos_per_page": 20},
+      "proxy_rotation": {"enabled": true, "pool_size": 10, "rotation_interval_requests": 50},
+      "metadata_fields": ["aweme_id", "desc", "duration_ms", "width", "height", "play_count", "digg_count", "comment_count", "share_count", "author_uid", "author_nickname", "music_title", "hashtags", "create_time"],
+      "rate_limit": {"requests_per_second": 2, "burst": 5, "cooldown_seconds": 60}
+    },
+    "xiaohongshu_fetch_engine": {
+      "platform": "xiaohongshu",
+      "search_endpoint": "https://edith.xiaohongshu.com/api/sns/web/v1/search/notes",
+      "video_extraction_methods": ["api_search", "note_detail", "share_card_resolve"],
+      "retry_config": {"max_retries": 3, "backoff_ms": 3000, "jitter_ms": 1000},
+      "pagination": {"max_pages": 5, "videos_per_page": 20},
+      "proxy_rotation": {"enabled": true, "pool_size": 10, "rotation_interval_requests": 30},
+      "metadata_fields": ["note_id", "title", "desc", "duration", "width", "height", "liked_count", "collected_count", "comment_count", "user_id", "nickname", "tags", "ip_location", "time"],
+      "rate_limit": {"requests_per_second": 1, "burst": 3, "cooldown_seconds": 120}
+    },
+    "bilibili_downloader_engine": {
+      "platform": "bilibili",
+      "search_endpoint": "https://api.bilibili.com/x/web-interface/search/type",
+      "video_extraction_methods": ["api_search", "video_playurl", "bangumi_api"],
+      "retry_config": {"max_retries": 5, "backoff_ms": 1500, "jitter_ms": 300},
+      "pagination": {"max_pages": 5, "videos_per_page": 20},
+      "proxy_rotation": {"enabled": true, "pool_size": 15, "rotation_interval_requests": 60},
+      "metadata_fields": ["aid", "bvid", "title", "desc", "duration", "width", "height", "view", "danmaku", "reply", "favorite", "coin", "like", "author_mid", "author_name", "tag", "pubdate"],
+      "rate_limit": {"requests_per_second": 3, "burst": 8, "cooldown_seconds": 30}
+    },
+    "weibo_crawler_engine": {
+      "platform": "weibo",
+      "search_endpoint": "https://s.weibo.com/video",
+      "video_extraction_methods": ["page_crawl", "ajax_api", "share_card_resolve"],
+      "retry_config": {"max_retries": 3, "backoff_ms": 3000, "jitter_ms": 1000},
+      "pagination": {"max_pages": 5, "videos_per_page": 20},
+      "proxy_rotation": {"enabled": true, "pool_size": 8, "rotation_interval_requests": 40},
+      "metadata_fields": ["mid", "text", "duration", "play_count", "reposts_count", "comments_count", "attitudes_count", "user_id", "screen_name", "topic_tags", "created_at"],
+      "rate_limit": {"requests_per_second": 1, "burst": 3, "cooldown_seconds": 90}
+    }
+  },
+  "global_config": {
+    "timeout_ms": 30000,
+    "user_agent_pool": ["Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"],
+    "cookie_dir": "cache/sessions/",
+    "log_dir": "logs/ingestion/",
+    "temp_dir": "temp/downloads/"
+  },
+  "consumes": {"search_keywords": ["string"], "shot_list": "from_stage_2"},
+  "produces": {"ingested_videos": [{"video_id": "string", "source_platform": "string", "source_url": "string", "original_metadata": {}, "download_path": "string", "download_method": "string", "file_size_bytes": "int", "ingested_at": "string"}]}
+}

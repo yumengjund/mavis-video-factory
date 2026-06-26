@@ -1,0 +1,7 @@
+{
+  "name": "creator-memory-writer", "version": "1.5.2-hardened", "stage": 13,
+  "memory_categories": ["successful_hooks", "failed_hooks", "viral_patterns", "asset_sources_rank", "platform_behavior", "edit_patterns"],
+  "consumes": {"viral_pattern": "from_stage_0", "hook_plan": "from_stage_2", "ranked_assets": "from_stage_4", "retention_curve": "from_stage_8", "seo_package": "from_stage_12"},
+  "produces": {"creator_memory_update": {"categories_written": ["string"]}},
+  "cold_start_policy": "no_hallucinated_history"
+}

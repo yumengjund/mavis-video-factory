@@ -1,0 +1,53 @@
+{
+  "version": "1.4.0",
+  "system_name": "Universal AIGC Video Factory",
+  "parent_system": "City Travel Video Factory (V1.0 - V1.3)",
+  "description": "General-purpose AI video creation system supporting 12+ content types, full platform adaptation, and commercial-grade quality control",
+  "total_stages": 12,
+  "content_types": ["travel", "food", "product", "documentary", "education", "advertisement", "storytelling", "technology", "lifestyle", "fashion", "music", "sports"],
+  "platforms": ["tiktok", "douyin", "bilibili", "youtube_shorts", "instagram_reels"],
+  "stages": [
+    {"stage": 1, "name": "Creative Strategy Agent", "module": "creative-strategy-agent", "description": "Pre-production strategy, content angle, audience analysis"},
+    {"stage": 2, "name": "Script Agent", "module": "script-agent", "description": "Script generation from strategy"},
+    {"stage": 3, "name": "Story Architect", "module": "story-architect-agent", "description": "Narrative structure, 6 archetypes, emotional arc design"},
+    {"stage": 4, "name": "Director Agent", "module": "director-agent", "description": "Shot breakdown, camera direction, keywords"},
+    {"stage": 5, "name": "Asset Intelligence", "module": "asset-intelligence-agent", "description": "Multi-source asset resolution, rich metadata"},
+    {"stage": 6, "name": "Vision Scorer", "module": "vision-scorer-v2", "description": "Asset scoring, ranking, quality filtering"},
+    {"stage": 7, "name": "Continuity Engine", "module": "continuity-engine", "description": "5-axis visual continuity check"},
+    {"stage": 8, "name": "Subtitle Engine", "module": "subtitle-engine", "description": "Kinetic typography, platform-aware positioning"},
+    {"stage": 9, "name": "Timeline Compiler", "module": "timeline-compiler-v2", "description": "Timeline generation, emotion pacing"},
+    {"stage": 10, "name": "Render Adapter", "module": "render-adapter-v2", "description": "ffmpeg rendering, quality-adaptive encoding"},
+    {"stage": 11, "name": "Platform Optimization", "module": "platform-optimization-agent", "description": "Per-platform format and metadata optimization"},
+    {"stage": 12, "name": "Quality Assurance", "module": "quality-assurance-agent", "description": "4-dimension quality gate, Production Ready certification"}
+  ],
+  "input_schema": {
+    "content_type": "travel | food | product | documentary | education | advertisement | storytelling",
+    "topic": "string - subject matter",
+    "industry": "string - industry vertical",
+    "location": "string - geographic context",
+    "platform": "tiktok | douyin | bilibili | youtube_shorts | instagram_reels",
+    "duration": "15 | 30 | 45 | 60",
+    "target_audience": "string - audience description",
+    "style": "cinematic | documentary | ugc_raw | polished_commercial | aesthetic | educational",
+    "language": "en | zh | ja | ko | multilingual",
+    "goal": "viral_growth | sales | brand_awareness | education | entertainment",
+    "reference_video": "url - optional reference"
+  },
+  "quality_gate": {
+    "production_ready_conditions": {
+      "visual_quality": {"min": 85},
+      "editing_quality": {"min": 85},
+      "content_quality": {"min": 85},
+      "commercial_quality": {"min": 85},
+      "watermark_free": {"required": true},
+      "black_frame_free": {"required": true},
+      "av_sync": {"required": true},
+      "timeline_executable": {"required": true}
+    }
+  },
+  "render_profiles": {
+    "tiktok_standard": {"resolution": "1080x1920", "fps": 30, "codec": "h264", "bitrate": "12M", "audio_codec": "AAC"},
+    "bilibili_hd": {"resolution": "1920x1080", "fps": 30, "codec": "h264", "bitrate": "15M", "audio_codec": "AAC"},
+    "youtube_4k": {"resolution": "3840x2160", "fps": 30, "codec": "h264", "bitrate": "20M", "audio_codec": "AAC"}
+  }
+}

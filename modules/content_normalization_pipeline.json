@@ -1,0 +1,37 @@
+{
+  "name": "content-normalization-pipeline",
+  "version": "1.5.2-hardened-patch2",
+  "stage": 3,
+  "extends": "asset-normalizer-runtime",
+  "output_schema": {
+    "required_fields": ["asset_id", "source_platform", "original_url", "duration", "resolution", "fps", "codec", "watermark_score", "download_method", "trend_score", "engagement_score", "provenance_chain", "file_path"],
+    "asset_id": {"type": "string", "format": "sha256_of_original_url"},
+    "source_platform": {"enum": ["douyin", "xiaohongshu", "bilibili", "weibo", "pexels", "pixabay", "unsplash", "local_cache", "ai_generated"]},
+    "original_url": {"type": "string", "format": "uri"},
+    "duration": {"type": "float", "unit": "seconds"},
+    "resolution": {"type": "string", "pattern": "WIDTHxHEIGHT"},
+    "fps": {"type": "float"},
+    "codec": {"type": "string", "enum": ["h264", "h265", "vp9", "av1"]},
+    "watermark_score": {"type": "int", "range": [0, 100]},
+    "download_method": {"enum": ["m3u8", "mp4_direct", "dash", "api_fetch", "local_copy", "ai_generated"]},
+    "trend_score": {"type": "int", "range": [0, 100], "description": "composite: plays+likes+shares+comments weighted"},
+    "engagement_score": {"type": "int", "range": [0, 100], "formula": "(likes+comments+shares)/views*1000_clamped"},
+    "provenance_chain": {"type": "array", "items": {"platform": "string", "url": "string", "fetch_timestamp": "string"}},
+    "file_path": {"type": "string", "format": "absolute_path"}
+  },
+  "normalization_rules": {
+    "resolution": {"standardize_to": "1080x1920", "padding_mode": "letterbox_black", "interpolation": "lanczos"},
+    "fps": {"standardize_to": 30, "frame_sampling": "nearest_neighbor"},
+    "codec": {"target": "h264", "crf": 23, "preset": "medium", "profile": "high"},
+    "audio": {"codec": "aac", "bitrate": "128k", "sample_rate": 44100, "channels": 2}
+  },
+  "quality_gates": {
+    "min_resolution": "720p",
+    "min_duration_seconds": 2.0,
+    "max_duration_seconds": 300.0,
+    "min_bitrate_mbps": 0.5,
+    "reject_corrupted": true
+  },
+  "consumes": {"cleaned_assets": "from_watermark_removal"},
+  "produces": {"normalized_assets": [{"asset_id": "string", "source_platform": "string", "original_url": "string", "duration": "float", "resolution": "string", "fps": "float", "codec": "string", "watermark_score": "int", "download_method": "string", "trend_score": "int", "engagement_score": "int", "provenance_chain": [{}], "file_path": "string"}]}
+}

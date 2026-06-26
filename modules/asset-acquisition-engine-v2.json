@@ -1,0 +1,8 @@
+{
+  "name": "asset-acquisition-engine-v2", "version": "1.5.2-hardened", "stage": 3,
+  "source_priority": {"tier_1_social": ["douyin", "xiaohongshu", "bilibili", "weibo", "wechat"], "tier_2_api": ["pexels", "pixabay", "unsplash", "mixkit"], "tier_3_local": ["cache"], "tier_4_ai": ["generative"]},
+  "social_processing": "search→filter→download→watermark_detection→reject_or_reuse→metadata→ranking",
+  "consumes": {"shot_list": "from_stage_2"},
+  "produces": {"raw_assets": [{"asset_id": "string", "source_type": "social|api|ai", "source_platform": "string", "trend_score": "int", "watermark_status": "clean|blocked", "reuse_safety": "bool", "file_path": "string"}], "asset_manifest": {}},
+  "env_keys": ["PEXELS_API_KEY", "PIXABAY_API_KEY", "UNSPLASH_ACCESS_KEY", "MIXKIT_API_KEY"]
+}

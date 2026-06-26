@@ -1,0 +1,15 @@
+{
+  "version": "1.5.3",
+  "engine": "playwright_chromium",
+  "headless": true,
+  "platforms": {
+    "douyin": {"enabled": true, "search_url": "https://www.douyin.com/search/{}", "max_scroll": 3, "timeout_ms": 30000, "rate_limit_seconds": 5},
+    "xiaohongshu": {"enabled": true, "search_url": "https://www.xiaohongshu.com/search_result?keyword={}", "max_scroll": 3, "timeout_ms": 30000, "rate_limit_seconds": 8},
+    "bilibili": {"enabled": true, "search_url": "https://search.bilibili.com/all?keyword={}", "max_scroll": 3, "timeout_ms": 30000, "rate_limit_seconds": 3},
+    "weibo": {"enabled": true, "search_url": "https://s.weibo.com/weibo?q={}", "max_scroll": 3, "timeout_ms": 30000, "rate_limit_seconds": 6}
+  },
+  "download": {"output_dir": "output/raw_ingestion/", "max_concurrent": 4, "retry": 3, "timeout_seconds": 60},
+  "watermark": {"crop_edge_px": 20, "crop_bottom_px": 80, "threshold": 30, "mode": "crop_only"},
+  "normalizer": {"output_dir": "output/normalized_assets/", "asset_version": "asset_v3"},
+  "pipeline_integration": {"target_stage": 3, "target_module": "asset-acquisition-engine-v2", "mode": "replace_ffmpeg_fallback"}
+}

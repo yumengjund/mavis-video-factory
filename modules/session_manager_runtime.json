@@ -1,0 +1,15 @@
+{
+  "name": "session-manager-runtime",
+  "version": "1.5.2-hardened-patch2",
+  "stage": "pre_ingestion",
+  "platforms": {
+    "douyin": {"auth_type": "cookie", "cookie_domains": [".douyin.com"], "session_refresh_interval_hours": 2, "cookie_fields": ["sessionid", "passport_csrf_token", "odin_tt", "multi_sids"], "validation_endpoint": "https://www.douyin.com/passport/web/check/"},
+    "xiaohongshu": {"auth_type": "cookie_token", "cookie_domains": [".xiaohongshu.com", ".xhscdn.com"], "session_refresh_interval_hours": 4, "cookie_fields": ["a1", "web_session", "webId", "x-user-id"], "validation_endpoint": "https://edith.xiaohongshu.com/api/sns/web/v1/user/me"},
+    "bilibili": {"auth_type": "cookie_wbi", "cookie_domains": [".bilibili.com"], "session_refresh_interval_hours": 24, "cookie_fields": ["SESSDATA", "bili_jct", "DedeUserID", "buvid3"], "wbi_signature": true, "validation_endpoint": "https://api.bilibili.com/x/web-interface/nav"},
+    "weibo": {"auth_type": "cookie", "cookie_domains": [".weibo.com", ".weibo.cn"], "session_refresh_interval_hours": 6, "cookie_fields": ["SUB", "SUBP", "WBPSESS", "login_referer"], "validation_endpoint": "https://weibo.com/ajax/profile/info"}
+  },
+  "session_store": {"backend": "sqlite", "db_path": "cache/sessions/sessions.db", "encrypt_cookies": true, "encryption_key_env": "SESSION_ENCRYPTION_KEY"},
+  "token_persistence": {"format": "encrypted_json", "rotation_policy": "rotate_on_401", "fallback": "manual_login_required"},
+  "health_check": {"interval_seconds": 300, "retry_on_failure": 3, "alert_on_all_dead": true},
+  "produces": {"active_sessions": [{"platform": "string", "status": "active|expired|missing", "validated_at": "string", "expires_at": "string"}]}
+}

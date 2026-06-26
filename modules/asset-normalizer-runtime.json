@@ -1,0 +1,17 @@
+{
+  "name": "asset-normalizer-runtime",
+  "version": "1.5.2-hardened-patch1",
+  "stage": 3,
+  "position": "post_ingestion_pre_scoring",
+  "consumes": {"raw_ingested_assets": "from_connectors"},
+  "produces": {"normalized_assets": [{"asset_id": "string", "source_platform": "string", "source_url": "string", "file_path": "string", "duration": "float", "resolution": "string", "fps": "float", "codec": "string", "hash": "string", "watermark_score": "int", "trend_score": "int", "visual_embedding": "float[]", "license_risk_score": "int", "normalized_at": "string", "status": "accepted|rejected", "rejection_reason": "string"}]},
+  "normalization_rules": {
+    "codec": {"force_h264": true, "re_encode_if_not": true, "crf": 23},
+    "resolution": {"min_width": 720, "preferred_width": 1080, "max_width": 3840, "maintain_aspect_ratio": true, "upscale_max_factor": 1.5},
+    "fps": {"standardize_to": 30, "allow_variable": false},
+    "audio": {"sample_rate": 44100, "channels": 2, "bitrate_kbps": 128},
+    "metadata": {"strip_all": false, "preserve": ["creation_time", "location"], "inject_source_trace": true},
+    "hash_algo": "sha256",
+    "watermark_detection": {"model": "yolo_watermark_detector_v3", "min_confidence": 0.75, "score_range": [0, 100], "rejection_threshold": 30}
+  }
+}

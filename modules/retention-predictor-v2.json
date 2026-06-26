@@ -1,0 +1,9 @@
+{
+  "name": "retention-predictor-v2", "version": "1.5.2-hardened", "stage": 8,
+  "zones": {"zone_1_0_3s": "hook_score", "zone_2_3_10s": "curiosity_score", "zone_3_10_20s": "emotional_escalation", "zone_4_20_30s": "conversion_score"},
+  "data_sources": ["v1.4.1_production_logs", "v1.5.x_production_logs", "real_user_engagement"],
+  "forbidden_sources": ["mock_data", "synthetic_scoring"],
+  "consumes": {"execution_graph": "from_render", "timeline": "from_stage_5"},
+  "produces": {"retention_curve": {"zones": {"hook": "int", "curiosity": "int", "emotional": "int", "conversion": "int"}, "composite": "int"}},
+  "retry_rule": {"threshold": 85, "target_stage": 2, "max_retries": 2}
+}

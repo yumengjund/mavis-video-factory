@@ -1,0 +1,50 @@
+{
+  "name": "watermark-removal-pipeline",
+  "version": "1.5.2-hardened-patch2",
+  "stage": "pre_render_cleanup",
+  "extends": "watermark-detection-runtime",
+  "pipeline_stages": [
+    {
+      "stage": 1,
+      "name": "detection",
+      "tool": "yolo_watermark_detector_v3",
+      "produces": {"bbox_list": [{"type": "string", "x": "int", "y": "int", "w": "int", "h": "int", "confidence": "float", "severity": "int"}]}
+    },
+    {
+      "stage": 2,
+      "name": "region_masking",
+      "methods": [
+        {"type": "dynamic_mask", "expands_bbox_by_px": 4, "soft_edge_px": 2},
+        {"type": "adaptive_threshold", "algorithm": "otsu"}
+      ],
+      "produces": {"mask_frames": "frame_indices_with_masks"}
+    },
+    {
+      "stage": 3,
+      "name": "inpainting",
+      "models": {
+        "primary": "lama_inpainting_v2",
+        "fallback": "opencv_telea_inpaint",
+        "blur_fallback": "gaussian_blur_25px"
+      },
+      "frame_batching": {"batch_size": 16, "overlap_frames": 2},
+      "quality_check": {"min_psnr_db": 30, "min_ssim": 0.90}
+    },
+    {
+      "stage": 4,
+      "name": "crop_fallback",
+      "trigger": "inpainting_quality_below_threshold",
+      "crop_strategy": "smart_crop_preserve_subject",
+      "subject_detection": "yolo_human_detector_v8"
+    },
+    {
+      "stage": 5,
+      "name": "quality_re_evaluation",
+      "checks": ["watermark_residual_score", "visual_artifact_score", "frame_consistency_score", "audio_sync_preserved"],
+      "pass_threshold": {"watermark_residual": "<5", "artifact_score": "<10", "consistency_score": ">95", "audio_sync": "preserved"},
+      "failure_action": "reject_asset→fetch_replacement"
+    }
+  ],
+  "consumes": {"filtered_assets": "from_watermark_detection"},
+  "produces": {"cleaned_assets": [{"asset_id": "string", "original_watermark_score": "int", "residual_watermark_score": "int", "removal_method": "inpainting|crop|rejected", "quality_metrics": {}, "cleaned_path": "string"}]}
+}

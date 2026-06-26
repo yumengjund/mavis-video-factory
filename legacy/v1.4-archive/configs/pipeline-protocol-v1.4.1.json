@@ -1,0 +1,45 @@
+{
+  "protocol": "pipeline-protocol-v1.4.1",
+  "version": "1.4.1",
+  "release_date": "2026-06-25",
+  "system": "Universal AIGC Video Factory",
+  "upgrade_from": "V1.4.0",
+  "pipeline": {
+    "total_stages": 14,
+    "stages": [
+      {"id": 1, "name": "Creative Strategy", "agent": "creative-strategy-agent", "version": "1.4.0", "status": "unchanged"},
+      {"id": 2, "name": "Story Architect", "agent": "story-architect-agent", "version": "1.4.0", "status": "unchanged"},
+      {"id": 3, "name": "Asset Intelligence", "agent": "asset-intelligence", "version": "1.4.1", "status": "new"},
+      {"id": 4, "name": "API Key Manager", "agent": "api-key-manager", "version": "1.4.1", "status": "new"},
+      {"id": 5, "name": "API Monitor", "agent": "api-monitor", "version": "1.4.1", "status": "new"},
+      {"id": 6, "name": "Vision Scorer", "agent": "vision-scorer-v2", "version": "1.3.0", "status": "unchanged"},
+      {"id": 7, "name": "Timeline Compiler", "agent": "timeline-compiler-v2", "version": "1.3.0", "status": "unchanged"},
+      {"id": 8, "name": "Subtitle Intelligence", "agent": "subtitle-intelligence", "version": "1.4.1", "status": "new"},
+      {"id": 9, "name": "Transition AI", "agent": "transition-ai", "version": "1.4.1", "status": "new"},
+      {"id": 10, "name": "Retention Analyzer", "agent": "retention-analyzer", "version": "1.4.1", "status": "new"},
+      {"id": 11, "name": "Render Adapter", "agent": "render-adapter", "version": "1.4.0", "status": "unchanged"},
+      {"id": 12, "name": "Platform Optimization", "agent": "platform-optimization-agent", "version": "1.4.0", "status": "unchanged"},
+      {"id": 13, "name": "SEO", "agent": "seo-engine-v2", "version": "1.3.0", "status": "unchanged"},
+      {"id": 14, "name": "Quality Assurance", "agent": "quality-assurance-agent", "version": "1.4.0", "status": "unchanged"}
+    ]
+  },
+  "new_v1.4.1_features": [
+    "API Key 生命周期管理 (api-key-manager)",
+    "API 健康监控系统 (api-monitor)",
+    "多源素材智能调度 (asset-intelligence 替代 asset-intelligence-agent)",
+    "智能字幕引擎V2 (subtitle-intelligence 替代 subtitle-engine)",
+    "AI 驱动转场引擎 (transition-ai)",
+    "留存率预测分析 (retention-analyzer)"
+  ],
+  "production_quality_gates": [
+    {"gate": "API Health", "requirement": "PASS"},
+    {"gate": "Asset Intelligence", "requirement": "PASS"},
+    {"gate": "No Mock Assets", "requirement": "PASS"},
+    {"gate": "Subtitle Quality", "requirement": "≥85"},
+    {"gate": "Transition Quality", "requirement": "≥85"},
+    {"gate": "Retention Score", "requirement": "≥85"},
+    {"gate": "Render Output", "requirement": "PASS"},
+    {"gate": "QA Score", "requirement": "≥85"}
+  ],
+  "output": "output/pipeline-protocol-v1.4.1.json"
+}

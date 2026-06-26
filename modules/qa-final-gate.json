@@ -1,0 +1,6 @@
+{
+  "name": "qa-final-gate", "version": "1.5.2-hardened", "stage": 14,
+  "thresholds": {"viral_score": 85, "retention": 85, "subtitle_score": 90, "transition_score": 85, "compliance": "PASS", "render_success": true},
+  "consumes": {"all_stage_outputs": true},
+  "produces": {"quality_report": {"composite": "int", "auto_fail": ["string"], "production_ready": "bool"}}
+}

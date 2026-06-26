@@ -1,0 +1,10 @@
+{
+  "name": "render-orchestrator", "version": "1.5.2-hardened", "stage": 10,
+  "primary_engine": "mavis",
+  "fallback_engines": ["premiere", "davinci_resolve"],
+  "debug_only_engine": "ffmpeg",
+  "ffmpeg_excluded_from_qa": true,
+  "profiles": {"tiktok_std": {"w": 1080, "h": 1920, "fps": 30}, "douyin_vertical": {"w": 1080, "h": 1920, "fps": 30}, "bilibili_hd": {"w": 1920, "h": 1080, "fps": 30}, "youtube_4k": {"w": 3840, "h": 2160, "fps": 30}, "xiaohongshu_portrait": {"w": 1080, "h": 1440, "fps": 30}},
+  "consumes": {"compliance_report": "PASS", "timeline": "from_stage_5"},
+  "produces": {"final_mp4": "string", "execution_graph_json": "string", "asset_manifest_json": "string", "render_log_json": "string"}
+}

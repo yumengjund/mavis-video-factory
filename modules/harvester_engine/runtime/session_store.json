@@ -1,0 +1,142 @@
+{
+  "douyin": {
+    "status": "active",
+    "cookies": [
+      {
+        "name": "sessionid",
+        "value": "1ca2fab711675b236d91b326745d5377",
+        "domain": ".douyin.com",
+        "path": "/",
+        "secure": false,
+        "httpOnly": false
+      },
+      {
+        "name": "passport_csrf_token",
+        "value": "72987a33dd018a3e671340a6ddbe74fe",
+        "domain": ".douyin.com",
+        "path": "/",
+        "secure": false,
+        "httpOnly": false
+      },
+      {
+        "name": "odin_tt",
+        "value": "35f47ad7cf01a9bf5ba38cd24d5092374b719ec6f34b9f96d2e43ec0e85dc38db7c2ab580de836d413a5ce858368d80cfab",
+        "domain": ".douyin.com",
+        "path": "/",
+        "secure": false,
+        "httpOnly": false
+      }
+    ],
+    "created_at": "2026-06-27T01:22:21+08:00",
+    "last_verified": "2026-06-27T01:23:43.280522"
+  },
+  "xiaohongshu": {
+    "status": "active",
+    "cookies": [
+      {
+        "name": "a1",
+        "value": "19f04bd965fr0n6pv26xzp4re2jex9auwmfdzj50250000897697",
+        "domain": ".xiaohongshu.com",
+        "path": "/",
+        "secure": false,
+        "httpOnly": false
+      },
+      {
+        "name": "web_session",
+        "value": "040069b862dd018d71570def0b384b5c7d527d",
+        "domain": ".xiaohongshu.com",
+        "path": "/",
+        "secure": false,
+        "httpOnly": false
+      },
+      {
+        "name": "webId",
+        "value": "2419b4e066e220a5d19380e5fc6df028",
+        "domain": ".xiaohongshu.com",
+        "path": "/",
+        "secure": false,
+        "httpOnly": false
+      }
+    ],
+    "created_at": "2026-06-27T01:22:21+08:00",
+    "last_verified": "2026-06-27T01:23:43.280522"
+  },
+  "bilibili": {
+    "status": "active",
+    "cookies": [
+      {
+        "name": "SESSDATA",
+        "value": "630b9225%2C1798043485%2C85b04%2A62CjAVWu6zLX0zmVaZX1jDYnix0a94ivg7Ps6FfA9_Kz5wcjsLQF6OPUQmkAkIXc79FyQSVnVLNHVxSDZSM1hvbE5QSGVxeW1LMEpxZ3YtTEQ5RTZYcW9Na0daQjRnSlhuUWxTWVFLM1cyZl9rN2xGMkEyeFFvVVlObzNPdnVQTWFKaHBSMnZRVVdRIIEC",
+        "domain": ".bilibili.com",
+        "path": "/",
+        "secure": false,
+        "httpOnly": false
+      },
+      {
+        "name": "bili_jct",
+        "value": "e27742967ef07a6b1d9651bf23c9dc3a3",
+        "domain": ".bilibili.com",
+        "path": "/",
+        "secure": false,
+        "httpOnly": false
+      },
+      {
+        "name": "DedeUserID",
+        "value": "1987660136",
+        "domain": ".bilibili.com",
+        "path": "/",
+        "secure": false,
+        "httpOnly": false
+      },
+      {
+        "name": "buvid3",
+        "value": "9F7D545A-18F5-13B9-7CF8-4D77EE548813",
+        "domain": ".bilibili.com",
+        "path": "/",
+        "secure": false,
+        "httpOnly": false
+      },
+      {
+        "name": "buvid4",
+        "value": "73F1B484-0C96-DF86-4C97-241EBDBA4EFG",
+        "domain": ".bilibili.com",
+        "path": "/",
+        "secure": false,
+        "httpOnly": false
+      }
+    ],
+    "created_at": "2026-06-27T01:22:21+08:00",
+    "last_verified": "2026-06-27T01:23:43.280522"
+  },
+  "weibo": {
+    "status": "active",
+    "cookies": [
+      {
+        "name": "SUB",
+        "value": "_2A25HOtd6DeRhGeFO6FcW8izEyDuIHXVkNlayrDV8PUNbmtAYLRHykW9NQWa9D2HqnT3Y4Q2UMGjIUxS7N1CJ3lt-",
+        "domain": ".weibo.com",
+        "path": "/",
+        "secure": false,
+        "httpOnly": false
+      },
+      {
+        "name": "SUBP",
+        "value": "0033WrSXqPxfM725Ws9jqgMF55529P9D9W59n6qY1WrSGZTXlxv_rjPs5JpX5KzhUgL.FoM7e0-NeozRe0M2dJLoIEXLxK-L12qLB-2LxK.L1h2L1KeLxK-LBo2LBo2LxKqL1--L1KMLxKqL1K.L1-2t",
+        "domain": ".weibo.com",
+        "path": "/",
+        "secure": false,
+        "httpOnly": false
+      },
+      {
+        "name": "WBPSESS",
+        "value": "hrCRkUmrf-UvZYgKtrRRRQQer3vX0_OBefDo48ypVF9_6zNTvgJgYBG8OYIg-YRjFXngqbJc89KTq9MJrEv2XR2_uWEff0wVwi4MVWo9yNs3yfnmOCmS7qA1ig-Mf1wBBQHIJiowQiu7ysJaUiXCGg==",
+        "domain": ".weibo.com",
+        "path": "/",
+        "secure": false,
+        "httpOnly": false
+      }
+    ],
+    "created_at": "2026-06-27T01:22:21+08:00",
+    "last_verified": "2026-06-27T01:23:43.280522"
+  }
+}

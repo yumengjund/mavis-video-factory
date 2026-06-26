@@ -1,0 +1,27 @@
+{
+  "version": "2.0.0",
+  "schema_name": "workflow-schema-v2.0",
+  "entry_point": "trend_research",
+  "stage_dependencies": {
+    "trend_research": {"produces": "trend_profile", "consumes": []},
+    "script": {"produces": ["script", "voiceover_text"], "consumes": ["trend_profile"]},
+    "hook_optimizer": {"produces": "hook_plan", "consumes": ["script", "trend_profile"]},
+    "director": {"produces": "shot_list", "consumes": ["script", "hook_plan"]},
+    "asset_resolver": {"produces": "raw_assets", "consumes": ["shot_list"]},
+    "vision_scorer": {"produces": "ranked_assets", "consumes": ["raw_assets", "hook_plan"]},
+    "story_assembly": {"produces": "story_map", "consumes": ["ranked_assets", "shot_list"]},
+    "voice_subtitle": {"produces": ["voice_track", "subtitle_track"], "consumes": ["script", "story_map"]},
+    "music_sync": {"produces": "beat_map", "consumes": ["story_map"]},
+    "timeline_compiler": {"produces": "execution_graph", "consumes": ["story_map", "beat_map", "ranked_assets"]},
+    "render_adapter": {"produces": "final_video", "consumes": ["execution_graph", "voice_track", "subtitle_track"]},
+    "quality_control": {"produces": "quality_report", "consumes": ["final_video", "execution_graph", "voice_track", "subtitle_track"]},
+    "seo": {"produces": "seo_package", "consumes": ["script", "final_video", "quality_report"]}
+  },
+  "data_flow": {
+    "artifacts": [
+      "trend_profile", "script", "hook_plan", "shot_list", "raw_assets",
+      "ranked_assets", "story_map", "voice_track", "subtitle_track",
+      "beat_map", "execution_graph", "final_video", "quality_report", "seo_package"
+    ]
+  }
+}

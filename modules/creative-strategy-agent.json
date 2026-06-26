@@ -1,0 +1,6 @@
+{
+  "name": "creative-strategy-agent", "version": "1.5.2-hardened", "stage": 1,
+  "absorbs": ["trend-research-agent"],
+  "consumes": {"topic": "string", "location": "string", "platform": "string", "duration": "int", "style": "string", "viral_pattern": "from_stage_0"},
+  "produces": {"content_angle": "string", "viral_hooks": ["string"], "emotional_goal": "string", "core_message": "string"}
+}

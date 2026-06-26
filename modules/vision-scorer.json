@@ -1,0 +1,6 @@
+{
+  "name": "vision-scorer", "version": "1.5.2-hardened", "stage": 4,
+  "weights": {"trend_fit": 0.30, "visual_quality": 0.25, "compliance": 0.20, "creator_history": 0.15, "platform_fit": 0.10},
+  "consumes": {"raw_assets": "from_stage_3", "viral_pattern": "from_stage_0"},
+  "produces": {"ranked_assets": [{"asset_id": "string", "composite_score": "float", "source_trace": "string"}]}
+}

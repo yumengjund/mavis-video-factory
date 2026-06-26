@@ -1,0 +1,8 @@
+{
+  "name": "viral-intelligence-engine", "version": "1.5.2-hardened", "stage": 0,
+  "platforms": ["douyin", "tiktok", "youtube_shorts"],
+  "dataset": "top_100_per_platform",
+  "consumes": {"platform": "string", "topic": "string", "location": "string"},
+  "produces": {"viral_pattern": {"hook_style": "string", "first_3_seconds": "string", "camera_frequency": "float", "subtitle_density": "string", "emotion_curve": "string", "music_style": "string", "trending_score": "float"}},
+  "constraints": {"scope": "douyin_tiktok_youtube_only", "staleness_ttl_days": 7}
+}

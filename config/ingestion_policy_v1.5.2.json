@@ -1,0 +1,34 @@
+{
+  "policy_name": "real-content-supply-chain",
+  "version": "1.5.2-hardened-patch2",
+  "priority_order": ["social_ingestion", "downloaded_streams", "api_fetch", "local_cache", "ai_generation"],
+  "hard_constraints": {
+    "social_asset_min_ratio": 0.70,
+    "ffmpeg_synthetic_max_ratio": 0.10,
+    "watermark_score_avg_max": 20,
+    "provenance_required": true,
+    "no_anonymous_assets": true
+  },
+  "stages": {
+    "social_ingestion": {"platforms": ["douyin", "xiaohongshu", "bilibili", "weibo"], "weight": 0.40, "timeout_ms": 45000, "min_assets_required": 10, "session_required": true},
+    "downloaded_streams": {"sources": "from_social_ingestion", "weight": 0.30, "timeout_ms": 60000, "min_assets_required": 8},
+    "api_fetch": {"sources": ["pexels", "pixabay", "unsplash", "mixkit"], "weight": 0.20, "timeout_ms": 20000, "min_assets_required": 5},
+    "local_cache": {"cache_dir": "cache/assets/", "weight": 0.08, "min_assets_required": 3},
+    "ai_generation": {"weight": 0.02, "enabled": true, "max_ai_assets": 2, "flag_as_synthetic": true, "note": "LAST_RESORT_ONLY"}
+  },
+  "quality_gates": {
+    "min_total_assets": 12,
+    "min_social_ratio": 0.70,
+    "max_watermark_score_avg": 20,
+    "max_ffmpeg_synthetic_ratio": 0.10,
+    "all_assets_must_have_provenance": true
+  },
+  "rejection_policy": {
+    "no_provenance": "reject",
+    "watermark_above_30": "reject",
+    "corrupted_file": "reject",
+    "duration_below_2s": "reject"
+  },
+  "fallback_chain": "social→streams→api→cache→ai_strict_last",
+  "hard_constraint": "ffmpeg_synthetic_clips_banned_as_primary_source"
+}

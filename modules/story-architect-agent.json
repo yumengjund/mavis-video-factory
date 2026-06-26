@@ -1,0 +1,7 @@
+{
+  "name": "story-architect-agent", "version": "1.5.2-hardened", "stage": 2,
+  "absorbs": ["hook-optimizer-agent", "director-agent"],
+  "consumes": {"content_angle": "string", "viral_hooks": ["string"], "emotional_goal": "string", "platform": "string", "duration": "int"},
+  "produces": {"script": "string", "hook_plan": {"hook_score": "int"}, "narrative_arc": "string", "shot_list": [{"shot_id": "string", "camera_direction": "string", "keywords": ["string"], "duration_sec": "float"}]},
+  "constraints": {"hook_score_threshold": 85}
+}

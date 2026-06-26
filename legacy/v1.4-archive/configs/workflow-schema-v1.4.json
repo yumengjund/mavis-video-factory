@@ -1,0 +1,23 @@
+{
+  "version": "1.4.0",
+  "schema_name": "Universal AIGC Video Factory Workflow Schema",
+  "description": "Cross-stage data contracts and schema definitions for V1.4 pipeline",
+  "asset_id_format": "ast_{batch}_{index}",
+  "node_id_format": "node_{NN}",
+  "frame_time_base": "1/30s",
+  "supported_resolutions": ["1080x1920", "1920x1080", "3840x2160"],
+  "stage_contracts": {
+    "creative_strategy": {"output": "strategy_v1.4.json", "fields": ["topic", "content_angle", "core_message", "emotional_goal", "viral_hook", "template_name"]},
+    "script": {"output": "script_v1.4.json", "fields": ["voiceover", "shots", "duration", "language"]},
+    "story_architect": {"output": "storyboard_v1.4.json", "fields": ["archetype", "narrative_beats", "story_coherence", "emotional_engagement"]},
+    "director": {"output": "director_v1.4.json", "fields": ["shots", "keywords", "transitions", "camera_direction"]},
+    "asset_intelligence": {"output": "assets_v1.4.json", "fields": ["source", "metadata", "asset_score", "commercial_usage"]},
+    "vision_scorer": {"output": "ranked_v1.4.json", "fields": ["ranked_assets", "score_distribution"]},
+    "continuity": {"output": "continuity_v1.4.json", "fields": ["score", "replacements", "transition_plan"]},
+    "subtitle": {"output": "subtitle_v1.4.json", "fields": ["segments", "animation", "safe_zones"]},
+    "timeline": {"output": "timeline_v1.4.json", "fields": ["nodes", "frames", "emotion_timeline"]},
+    "render": {"output": "final_v1.4.mp4", "fields": ["resolution", "codec", "duration", "size"]},
+    "platform_optimization": {"output": "platform_v1.4.json", "fields": ["title", "hashtags", "cover", "platform_adjustments"]},
+    "quality_assurance": {"output": "qa_v1.4.json", "fields": ["dimensions", "overall_score", "production_ready"]}
+  }
+}

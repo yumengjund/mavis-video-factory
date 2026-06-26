@@ -1,0 +1,51 @@
+{
+  "version": "2.0.0",
+  "name": "City Travel Video Factory V2.0 - Creator Quality System",
+  "pipeline": {
+    "total_stages": 13,
+    "stages": [
+      {"id": "stage_01", "name": "Trend Research Agent", "order": 1, "module": "trend-research-agent"},
+      {"id": "stage_02", "name": "Script Agent", "order": 2},
+      {"id": "stage_03", "name": "Hook Optimizer Agent", "order": 3, "module": "hook-optimizer-agent"},
+      {"id": "stage_04", "name": "Director Agent", "order": 4},
+      {"id": "stage_05", "name": "Asset Resolver", "order": 5},
+      {"id": "stage_06", "name": "Vision Scorer 2.0", "order": 6},
+      {"id": "stage_07", "name": "Story Assembly Engine", "order": 7, "module": "story-assembly-engine"},
+      {"id": "stage_08", "name": "Voice & Subtitle Engine", "order": 8, "module": "voice-subtitle-engine"},
+      {"id": "stage_09", "name": "Music Sync Engine", "order": 9, "module": "music-sync-engine"},
+      {"id": "stage_10", "name": "Timeline Compiler 2.0", "order": 10},
+      {"id": "stage_11", "name": "Render Adapter Creator", "order": 11},
+      {"id": "stage_12", "name": "Quality Control Agent", "order": 12, "module": "quality-control-agent"},
+      {"id": "stage_13", "name": "SEO Agent", "order": 13}
+    ]
+  },
+  "creator_quality_constraints": {
+    "min_nodes": 8,
+    "max_duplicate_ratio": 0.10,
+    "hook_score_min": 85,
+    "creator_score_min": 85,
+    "require_voice_track": true,
+    "require_subtitle_track": true,
+    "forbidden_10s_loop": true
+  },
+  "vision_scorer_2_0_weights": {
+    "viral_score": 0.35,
+    "visual_quality": 0.25,
+    "story_fit": 0.20,
+    "creator_score": 0.10,
+    "platform_fit": 0.10
+  },
+  "creator_score_sub_weights": {
+    "camera_realism": 0.30,
+    "travel_feeling": 0.30,
+    "human_story": 0.25,
+    "uniqueness": 0.15
+  },
+  "render_profile": {
+    "resolution": "1080x1920",
+    "fps": 30,
+    "codec": "h264",
+    "audio_codec": "AAC",
+    "outputs": ["final_video.mp4", "voice_track.wav", "subtitle.json", "metadata_bundle.json"]
+  }
+}

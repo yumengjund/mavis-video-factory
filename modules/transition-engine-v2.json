@@ -1,0 +1,7 @@
+{
+  "name": "transition-engine-v2", "version": "1.5.2-hardened", "stage": 7,
+  "absorbs": ["music-sync"],
+  "consumes": {"timeline": "from_stage_5"},
+  "produces": {"beat_map": {}, "transition_map": {}},
+  "constraints": {"beat_synced_min": 0.80, "transition_types": 14}
+}

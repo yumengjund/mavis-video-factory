@@ -1,0 +1,10 @@
+{
+  "d1_social_platforms": ["douyin", "xiaohongshu", "bilibili", "weibo", "wechat"],
+  "d2_asset_priority": "social→api→local→ai",
+  "d3_render_engine": "mavis_primary",
+  "d4_external_engines": {"premiere": "optional", "davinci": "optional", "ffmpeg": "debug_only"},
+  "d5_retention_data": "v1.4.1_and_v1.5.x_logs_only",
+  "d6_viral_scope": "douyin_tiktok_youtube_top100",
+  "d7_creator_memory_init": "cold_start_if_no_prior_data",
+  "d8_subtitle_strategy": "heuristic_default_dl_fallback"
+}

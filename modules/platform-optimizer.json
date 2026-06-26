@@ -1,0 +1,5 @@
+{
+  "name": "platform-optimizer", "version": "1.5.2-hardened", "stage": 11,
+  "consumes": {"final_mp4": "from_stage_10", "platform": "string"},
+  "produces": {"optimized_mp4": "string"}
+}

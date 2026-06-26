@@ -1,0 +1,9 @@
+{
+  "single_pipeline_only": true,
+  "no_branch_execution": true,
+  "no_mock_assets": true,
+  "no_ffmpeg_production": true,
+  "no_unverified_social_scraping": true,
+  "strict_decision_lock": true,
+  "deterministic_pipeline": true
+}

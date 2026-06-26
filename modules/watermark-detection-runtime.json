@@ -1,0 +1,26 @@
+{
+  "name": "watermark-detection-runtime",
+  "version": "1.5.2-hardened-patch1",
+  "stage": 3,
+  "position": "pre_render_filter",
+  "model": {"architecture": "YOLO-tiny-watermark-v3", "input_size": [640, 640], "confidence_threshold": 0.75, "iou_threshold": 0.45},
+  "watermark_types": {
+    "logo": {"description": "Platform logo (Douyin/XHS/Bilibili etc.)", "severity": 70, "action": "reject_if_visible"},
+    "text_overlay": {"description": "Username/ID text watermark", "severity": 50, "action": "reject_if_visible"},
+    "timestamp": {"description": "Recording timestamp overlay", "severity": 20, "action": "crop_if_possible"},
+    "border_frame": {"description": "Platform UI border/frame", "severity": 60, "action": "crop_if_possible"},
+    "qr_code": {"description": "QR code watermark", "severity": 90, "action": "reject_always"}
+  },
+  "computation": {
+    "detect_regions": "bounding_boxes",
+    "watermark_score": "(sum(severity_i * area_ratio_i) / total_area) * 100",
+    "scoring_range": [0, 100]
+  },
+  "rejection_policy": {
+    "threshold": 30,
+    "rule": "reject_if_watermark_score_greater_than_threshold",
+    "fallback": "log_and_proceed_to_next_asset"
+  },
+  "consumes": {"normalized_assets": "from_normalizer"},
+  "produces": {"filtered_assets": [{"asset_id": "string", "watermark_score": "int", "detected_regions": [{"type": "string", "bbox": [0, 0, 0, 0], "confidence": "float", "severity": "int"}], "action": "accept|reject|crop", "processed_file_path": "string"}]}
+}

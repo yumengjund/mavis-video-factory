@@ -1,0 +1,5 @@
+{
+  "name": "seo-engine", "version": "1.5.2-hardened", "stage": 12,
+  "consumes": {"optimized_mp4": "from_stage_11", "topic": "string", "location": "string", "platform": "string"},
+  "produces": {"seo_package": {"title": "string", "description": "string", "tags": ["string"], "hashtags": ["string"], "thumbnail_description": "string"}}
+}

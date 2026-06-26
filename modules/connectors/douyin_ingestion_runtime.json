@@ -1,0 +1,15 @@
+{
+  "name": "douyin_ingestion_runtime",
+  "version": "1.5.2-hardened-patch1",
+  "platform": "douyin",
+  "base_search_url": "https://www.douyin.com/search/{keyword}",
+  "capabilities": {
+    "keyword_search": {"enabled": true, "max_results": 50},
+    "video_download": {"enabled": true, "format": "mp4", "max_bitrate_mbps": 8},
+    "metadata_extraction": {"fields": ["title", "duration", "play_count", "like_count", "share_count", "author_uid", "music_id", "hashtags"]},
+    "license_estimation": {"method": "soft_heuristic", "indicators": ["watermark_presence", "author_verified", "original_sound"], "risk_score_range": [0, 100]},
+    "format_normalization": {"target_codec": "h264", "target_fps": 30, "target_resolution": "1080p", "normalize_audio": true}
+  },
+  "rate_limit": {"requests_per_minute": 10, "burst": 3},
+  "user_agent": "Mozilla/5.0"
+}

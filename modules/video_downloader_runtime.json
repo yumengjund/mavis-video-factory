@@ -1,0 +1,43 @@
+{
+  "name": "video-downloader-runtime",
+  "version": "1.5.2-hardened-patch2",
+  "stage": 3,
+  "position": "post_ingestion_download",
+  "download_methods": {
+    "m3u8_stream": {
+      "enabled": true,
+      "parser": "m3u8_parser_v2",
+      "resolution_selection": "highest_available",
+      "chunk_download": {"max_concurrent": 8, "chunk_buffer_size_kb": 1024, "verify_hash": "md5"},
+      "merge_tool": "ffmpeg_concat_demuxer",
+      "retry": {"max_chunk_retries": 5, "max_stream_retries": 3}
+    },
+    "mp4_direct": {
+      "enabled": true,
+      "download_mode": "streaming_with_resume",
+      "max_concurrent_sessions": 4,
+      "chunk_size_kb": 2048,
+      "resume_support": true,
+      "retry": {"max_retries": 3, "range_header_fallback": true}
+    },
+    "dash_stream": {
+      "enabled": true,
+      "parser": "mpd_parser_v1",
+      "video_only_mode": true,
+      "audio_mux_later": true,
+      "retry": {"max_retries": 3}
+    }
+  },
+  "recovery": {
+    "partial_recovery": {"enabled": true, "checkpoint_interval_bytes": 5242880, "resume_from_checkpoint": true},
+    "corrupted_chunk_detection": {"method": "hash_compare", "action": "redownload_chunk"}
+  },
+  "post_process": {
+    "verify_integrity": true,
+    "extract_keyframes": {"enabled": true, "interval_seconds": 2},
+    "generate_thumbnail": {"enabled": true, "size": "480x270"},
+    "compute_checksum": "sha256"
+  },
+  "consumes": {"ingested_videos": "from_ingestion_engine"},
+  "produces": {"downloaded_videos": [{"video_id": "string", "final_path": "string", "file_size_bytes": "int", "sha256": "string", "duration_ms": "int", "resolution": "string", "codec": "string", "container": "string", "download_duration_ms": "int", "retry_count": "int", "integrity_pass": "bool"}]}
+}

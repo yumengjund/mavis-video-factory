@@ -1,0 +1,6 @@
+{
+  "name": "timeline-compiler", "version": "1.5.2-hardened", "stage": 5,
+  "consumes": {"ranked_assets": "from_stage_4", "shot_list": "from_stage_2", "hook_plan": "from_stage_2"},
+  "produces": {"timeline": {"nodes": "int", "duplicate_ratio": "float"}},
+  "constraints": {"min_nodes": 8, "max_duplicate_ratio": 0.10}
+}
