@@ -1,9 +1,9 @@
 {
   "version": "1.5.3",
   "sessions": {
-    "douyin": {"status": "missing", "note": "需要浏览器手动登录获取 cookie"},
-    "xiaohongshu": {"status": "missing", "note": "需要浏览器手动登录获取 cookie"},
     "bilibili": {"status": "missing", "note": "需要浏览器手动登录获取 cookie"},
+    "xiaohongshu": {"status": "missing", "note": "需要浏览器手动登录获取 cookie"},
+    "douyin": {"status": "missing", "note": "需要浏览器手动登录获取 cookie"},
     "weibo": {"status": "missing", "note": "需要浏览器手动登录获取 cookie"}
   },
   "last_updated": null

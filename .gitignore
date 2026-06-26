@@ -9,3 +9,8 @@ __pycache__/
 .env
 node_modules/
 *.zip
+
+session_store.json
+*_session.json
+*/session_store.json
+config/platform_cookie_store.json
