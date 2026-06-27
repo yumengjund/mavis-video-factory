@@ -151,6 +151,30 @@ class SupplyOrchestrator:
         stats["assets_valid"] = validation["stats"]["valid"]
         stats["assets_rejected"] = validation["stats"]["rejected"]
 
+        # ---- Step 6.5: Download videos ----
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+        from modules.harvester_engine.video_downloader import VideoDownloader
+
+        downloader = VideoDownloader(output_dir=self.assets_dir)
+        downloaded_count = 0
+
+        for asset in validation["valid"]:
+            asset_data = asset["asset"]
+            url = asset_data.get("url", "")
+            asset_id = asset_data.get("asset_id", "")
+            if url and asset_id:
+                try:
+                    path = downloader.download(url, filename=f"{asset_id}.mp4")
+                    if path:
+                        asset_data["filepath"] = path
+                        downloaded_count += 1
+                except Exception as e:
+                    print(f"[WARN] Download failed: {asset_id} - {e}")
+
+        print(f"[Supply] Downloaded {downloaded_count}/{len(validation['valid'])} videos")
+
         # ---- Step 7: Persist ----
         os.makedirs(self.assets_dir, exist_ok=True)
         asset_path = os.path.join(

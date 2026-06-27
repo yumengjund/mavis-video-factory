@@ -236,7 +236,7 @@ class RenderOrchestrationEngine:
         segments from them using ffmpeg. Falls back to synthetic if
         assets are missing or insufficient."""
         paths: List[str] = []
-        assets_dir = os.path.join(self.output_dir, "..", "assets")
+        assets_dir = os.path.join(self.output_dir, "..", "v1_6_assets")
         assets_dir = os.path.abspath(assets_dir)
 
         media_exts = {".mp4", ".mov", ".avi", ".webm"}
