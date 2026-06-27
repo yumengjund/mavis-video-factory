@@ -50,6 +50,7 @@ class SupplyOrchestrator:
         self.fetch_controller = AdaptiveFetchController(
             session_pool=self.session_pool,
             anti_block_engine=self.anti_block,
+            test_mode=self.config.get("test_mode", False),
         )
         self.validation_gate = ContentValidationGate()
 
