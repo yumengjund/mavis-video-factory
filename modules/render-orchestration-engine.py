@@ -227,6 +227,78 @@ class RenderOrchestrationEngine:
 
         return paths
 
+    # -- 2b. compile_real_segments ------------------------------------------
+
+    def compile_real_segments(self,
+                              segments: List[Dict[str, Any]]
+                              ) -> List[str]:
+        """Real mode: scan output/assets/ for real media files and cut
+        segments from them using ffmpeg. Falls back to synthetic if
+        assets are missing or insufficient."""
+        paths: List[str] = []
+        assets_dir = os.path.join(self.output_dir, "..", "assets")
+        assets_dir = os.path.abspath(assets_dir)
+
+        media_exts = {".mp4", ".mov", ".avi", ".webm"}
+        asset_files: List[str] = []
+        if os.path.isdir(assets_dir):
+            for fname in sorted(os.listdir(assets_dir)):
+                _, ext = os.path.splitext(fname)
+                if ext.lower() in media_exts:
+                    asset_files.append(os.path.join(assets_dir, fname))
+
+        if not asset_files:
+            self.log_lines.append(
+                "[WARN] No real assets found in assets/, falling back to synthetic"
+            )
+            return self.generate_synthetic_segments(segments)
+
+        # Round-robin assignment of assets to segments
+        for i, seg in enumerate(segments):
+            role = seg["role"]
+            clip_id = seg["clip_id"]
+            duration = max(seg["duration"], 0.5)
+            out_name = f"seg_{i:03d}_{role}_{clip_id}.mp4"
+            out_path = os.path.join(self.segment_dir, out_name)
+
+            src = asset_files[i % len(asset_files)]
+            cmd = [
+                "ffmpeg", "-y",
+                "-ss", "0",
+                "-i", src,
+                "-t", str(duration),
+                "-c:v", "libx264",
+                "-preset", "ultrafast",
+                "-crf", "23",
+                "-pix_fmt", "yuv420p",
+                "-an",
+                "-vf", (
+                    f"scale={self.width}:{self.height}:"
+                    "force_original_aspect_ratio=decrease,"
+                    f"pad={self.width}:{self.height}:(ow-iw)/2:(oh-ih)/2,"
+                    "setsar=1"
+                ),
+                out_path,
+            ]
+
+            rc, _, _ = run_ffmpeg(cmd, self.log_lines)
+            if rc == 0 and os.path.exists(out_path) and os.path.getsize(out_path) > 0:
+                paths.append(out_path)
+                self.log_lines.append(
+                    f"[OK] real seg_{i:03d}: {out_name} "
+                    f"from {os.path.basename(src)}"
+                )
+            else:
+                self.log_lines.append(
+                    f"[FAIL] real seg_{i:03d}: rc={rc}, "
+                    f"falling back to synthetic"
+                )
+                fallback = self.generate_synthetic_segments([seg])
+                if fallback:
+                    paths.append(fallback[0])
+
+        return paths
+
     # -- 3. build_ffmpeg_concat_pipeline ------------------------------------
 
     def build_ffmpeg_concat_pipeline(self,
@@ -351,7 +423,7 @@ class RenderOrchestrationEngine:
 
     def execute_render(self,
                        timeline: List[Dict[str, Any]],
-                       test_mode: bool = True
+                       test_mode: bool = False
                        ) -> Dict[str, Any]:
         """Main entry: complete render pipeline."""
         self.log_lines = []
@@ -372,6 +444,11 @@ class RenderOrchestrationEngine:
             segment_paths = self.generate_synthetic_segments(segments)
             self.log_lines.append(
                 f"Generated {len(segment_paths)}/{len(segments)} segments"
+            )
+        else:
+            segment_paths = self.compile_real_segments(segments)
+            self.log_lines.append(
+                f"Compiled {len(segment_paths)}/{len(segments)} real segments"
             )
 
         transitions_applied = sum(
@@ -517,6 +594,60 @@ class RenderOrchestrationEngine:
 
     # -- 8. validate_output -------------------------------------------------
 
+    def _check_visual_content(self, video_path: str) -> bool:
+        """Use ffprobe to extract a frame and compute pixel stddev.
+        Returns False if stddev < 3 (likely solid-color / blank frame)."""
+        if not video_path or not os.path.exists(video_path):
+            return False
+
+        try:
+            # Extract one frame at 1s as raw RGB24
+            cmd = [
+                "ffmpeg", "-y",
+                "-ss", "1",
+                "-i", video_path,
+                "-vframes", "1",
+                "-f", "rawvideo",
+                "-pix_fmt", "rgb24",
+                "-",
+            ]
+            proc = subprocess.run(
+                cmd, capture_output=True, timeout=30,
+            )
+            if proc.returncode != 0 or not proc.stdout:
+                return False
+
+            # Compute per-pixel stddev in Python (avoid numpy dependency)
+            data = proc.stdout
+            total = len(data)
+            if total == 0:
+                return False
+
+            # Sample every 4th pixel for performance
+            sample = data[::4]
+            n = len(sample)
+            if n == 0:
+                return False
+
+            mean = sum(sample) / n
+            variance = sum((b - mean) ** 2 for b in sample) / n
+            stddev = variance ** 0.5
+
+            self.log_lines.append(
+                f"[QA] visual_content stddev={stddev:.2f} "
+                f"({'OK' if stddev >= 3 else 'SOLID_COLOR'})"
+            )
+            return stddev >= 3
+
+        except subprocess.TimeoutExpired:
+            self.log_lines.append("[QA] visual_content check timed out")
+            return False
+        except Exception as e:
+            self.log_lines.append(f"[QA] visual_content check error: {e}")
+            return False
+
+    # -- 8b. validate_output ------------------------------------------------
+
     def validate_output(self, video_path: str) -> Dict[str, Any]:
         """ffprobe validation."""
         gates_default = {
@@ -530,6 +661,7 @@ class RenderOrchestrationEngine:
                 "resolution_match": False, "fps_match": False,
                 "codec_match": False, "audio_match": False,
                 "duration_ok": False,
+                "visual_content_ok": False,
                 "structural_gates": dict(gates_default),
                 "error": "file not found",
             }
@@ -540,6 +672,7 @@ class RenderOrchestrationEngine:
                 "resolution_match": False, "fps_match": False,
                 "codec_match": False, "audio_match": False,
                 "duration_ok": False,
+                "visual_content_ok": False,
                 "structural_gates": dict(gates_default),
                 "error": "zero-byte file",
             }
@@ -559,6 +692,7 @@ class RenderOrchestrationEngine:
                     "resolution_match": False, "fps_match": False,
                     "codec_match": False, "audio_match": False,
                     "duration_ok": False,
+                    "visual_content_ok": False,
                     "structural_gates": dict(gates_default),
                     "error": f"ffprobe rc={proc.returncode}",
                 }
@@ -568,6 +702,7 @@ class RenderOrchestrationEngine:
                 "resolution_match": False, "fps_match": False,
                 "codec_match": False, "audio_match": False,
                 "duration_ok": False,
+                "visual_content_ok": False,
                 "structural_gates": dict(gates_default),
                 "error": str(e),
             }
@@ -592,12 +727,15 @@ class RenderOrchestrationEngine:
         actual_audio_codec = as_.get("codec_name", "")
         raw_dur = float(fmt.get("duration", 0))
 
+        visual_content_ok = self._check_visual_content(video_path)
+
         return {
             "resolution_match": (actual_w == self.width and actual_h == self.height),
             "fps_match": abs(actual_fps - self.fps) < 1.0,
             "codec_match": "h264" in actual_codec.lower(),
             "audio_match": "aac" in actual_audio_codec.lower() or len(audio_streams) > 0,
             "duration_ok": abs(raw_dur - 30.0) <= 5.0,
+            "visual_content_ok": visual_content_ok,
             "actual": {
                 "width": actual_w, "height": actual_h,
                 "fps": round(actual_fps, 2),
@@ -723,7 +861,7 @@ if __name__ == "__main__":
     # 3. Render
     print("[Render-Engine] Executing render pipeline ...")
     engine = RenderOrchestrationEngine(output_dir=output_dir)
-    result = engine.execute_render(execution_timeline, test_mode=True)
+    result = engine.execute_render(execution_timeline, test_mode=False)
 
     # 4. Report
     report = engine.generate_report(result)
