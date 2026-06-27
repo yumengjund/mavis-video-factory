@@ -297,7 +297,8 @@ class AdaptiveFetchController:
 
                     # Step 2: Get video playback URL
                     play_url = self._bilibili_get_play_url(bvid)
-                    if play_url:
+                    # P2-1: Filter AI-generated content
+                    if play_url and not self._is_ai_generated(title):
                         results.append({
                             "bvid": bvid,
                             "title": title,
@@ -306,6 +307,8 @@ class AdaptiveFetchController:
                             "author": author,
                         })
                         print(f"[Fetch] Bilibili API: {bvid} {title[:30]}...")
+                    elif play_url and self._is_ai_generated(title):
+                        print(f"[Fetch] Bilibili API: SKIPPED AI {bvid} {title[:30]}...")
 
         except Exception as e:
             print(f"[Fetch] Bilibili API search failed: {e}")
@@ -423,3 +426,24 @@ class AdaptiveFetchController:
             "by_platform": stats,
             "ua_rotations": self._ua_index,
         }
+
+    # -- P2-1: AI content filter -------------------------------------------
+
+    _AI_KEYWORDS = [
+        "AI生成", "AI创作", "AIGC", "AI生成视频",
+        "人工智能生成", "机器生成",
+    ]
+
+    @classmethod
+    def _is_ai_generated(cls, title: str) -> bool:
+        """P2-1: Check if title/tag indicates AI-generated content.
+
+        Returns True if the title contains any AI-generation keywords.
+        """
+        if not title:
+            return False
+        title_lower = title.lower()
+        for kw in cls._AI_KEYWORDS:
+            if kw.lower() in title_lower:
+                return True
+        return False

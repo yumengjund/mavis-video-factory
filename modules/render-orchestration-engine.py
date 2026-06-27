@@ -22,6 +22,13 @@ import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+# V1.6.1: Real audio pipeline imports
+try:
+    from gtts import gTTS as _gTTS
+    _gTTS_available = True
+except ImportError:
+    _gTTS_available = False
+
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -41,7 +48,7 @@ XFADE_MAP = {
     "motion_blur": "fade",
 }
 
-TRANSITION_DURATION = 0.5  # seconds
+TRANSITION_DURATION = 0.3  # seconds (V1.6.1: reduced from 0.5 for tighter crossfade)
 
 
 # ---------------------------------------------------------------------------
@@ -91,11 +98,14 @@ class RenderOrchestrationEngine:
                  output_dir: str,
                  width: int = 1080,
                  height: int = 1920,
-                 fps: int = 30) -> None:
+                 fps: int = 30,
+                 watermark_crop: bool = False,  # P2-2
+                 ) -> None:
         self.output_dir = output_dir
         self.width = width
         self.height = height
         self.fps = fps
+        self.watermark_crop = watermark_crop  # P2-2
         self.segment_dir = ensure_dir(os.path.join(output_dir, "segments"))
         self.log_lines: List[str] = []
 
@@ -232,10 +242,17 @@ class RenderOrchestrationEngine:
     def compile_real_segments(self,
                               segments: List[Dict[str, Any]]
                               ) -> List[str]:
-        """Real mode: scan output/assets/ for real media files and cut
-        segments from them using ffmpeg. Falls back to synthetic if
-        assets are missing or insufficient."""
+        """V1.6.1 real mode: preprocess assets and cut segments.
+
+        Per-asset preprocessing (P1-1):
+          - Trim 0.5s from start (avoid black/leader frames)
+          - Scale + pad to 1080×1920, force 30fps
+          - Skip segments shorter than 1.0s
+
+        Dedup (P1-4): used_sources set prevents same asset reuse.
+        """
         paths: List[str] = []
+        used_sources: set = set()  # P1-4: dedup
         assets_dir = os.path.join(self.output_dir, "..", "v1_6_assets")
         assets_dir = os.path.abspath(assets_dir)
 
@@ -253,18 +270,56 @@ class RenderOrchestrationEngine:
             )
             return self.generate_synthetic_segments(segments)
 
+        # V1.6.1: Segment preprocessing filter chain
+        # P1-1: trim 0.5s start + scale 1080×1920 + 30fps
+        # P1-3: color balance (warm tone, documentary style)
+        # P2-2: watermark crop (scale 1.05 then crop center) when enabled
+        if self.watermark_crop:
+            # P2-2: scale up 5%, crop back to 1080x1920 centered → trims edges
+            self.log_lines.append("[V1.6.1] Watermark crop enabled")
+            preprocess_vf = (
+                f"scale={int(self.width*1.05)}:{int(self.height*1.05)}:"
+                "force_original_aspect_ratio=decrease,"
+                f"crop={self.width}:{self.height},"
+                "setsar=1,"
+                "fps=30,"
+                "eq=saturation=1.2:contrast=1.05:brightness=0.02"
+            )
+        else:
+            preprocess_vf = (
+                f"scale={self.width}:{self.height}:"
+                "force_original_aspect_ratio=decrease,"
+                f"pad={self.width}:{self.height}:(ow-iw)/2:(oh-ih)/2,"
+                "setsar=1,"
+                "fps=30,"
+                "eq=saturation=1.2:contrast=1.05:brightness=0.02"
+            )
+
         # Round-robin assignment of assets to segments
         for i, seg in enumerate(segments):
             role = seg["role"]
             clip_id = seg["clip_id"]
-            duration = max(seg["duration"], 0.5)
+            duration = max(seg["duration"], 1.0)  # P1-1: minimum 1.0s
             out_name = f"seg_{i:03d}_{role}_{clip_id}.mp4"
             out_path = os.path.join(self.segment_dir, out_name)
 
-            src = asset_files[i % len(asset_files)]
+            # P1-4: pick next unused source
+            src = None
+            for candidate in asset_files:
+                if candidate not in used_sources:
+                    src = candidate
+                    used_sources.add(candidate)
+                    break
+            if src is None:
+                # All sources used once; reset for second pass
+                used_sources.clear()
+                src = asset_files[i % len(asset_files)]
+                used_sources.add(src)
+
+            # P1-1: trim 0.5s from start to avoid leader/black frames
             cmd = [
                 "ffmpeg", "-y",
-                "-ss", "0",
+                "-ss", "0.5",
                 "-i", src,
                 "-t", str(duration),
                 "-c:v", "libx264",
@@ -272,12 +327,7 @@ class RenderOrchestrationEngine:
                 "-crf", "23",
                 "-pix_fmt", "yuv420p",
                 "-an",
-                "-vf", (
-                    f"scale={self.width}:{self.height}:"
-                    "force_original_aspect_ratio=decrease,"
-                    f"pad={self.width}:{self.height}:(ow-iw)/2:(oh-ih)/2,"
-                    "setsar=1"
-                ),
+                "-vf", preprocess_vf,
                 out_path,
             ]
 
@@ -338,6 +388,72 @@ class RenderOrchestrationEngine:
             output_video,
         ]
 
+    # -- 3b. build_xfade_concat_pipeline (V1.6.1 P1-2) --------------------
+
+    def build_xfade_concat_pipeline(self,
+                                    segment_paths: List[str],
+                                    output_video: str,
+                                    xfade_duration: float = 0.3
+                                    ) -> Optional[List[str]]:
+        """V1.6.1 P1-2: crossfade dissolve between segments.
+
+        Uses ffmpeg xfade filter chain. Falls back to hard-cut concat
+        demuxer on failure.
+        """
+        n = len(segment_paths)
+        if n == 0:
+            return None
+        if n == 1:
+            return [
+                "ffmpeg", "-y",
+                "-i", segment_paths[0],
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+                "-pix_fmt", "yuv420p", "-an",
+                output_video,
+            ]
+
+        # Build xfade filter_complex chain
+        # For n segments: [0][1]xfade → [xf0]; [xf0][2]xfade → [xf1]; ...
+        inputs = []
+        filter_parts = []
+        for i, p in enumerate(segment_paths):
+            inputs.extend(["-i", p])
+
+        # First xfade: [0][1]xfade=dissolve:0.3 → [xf0]
+        offset_expr = f"offset{0}" if n > 2 else ""
+        filter_parts.append(
+            f"[0][1]xfade=transition=dissolve:duration={xfade_duration}"
+            f":offset={offset_expr}[xf0]"
+        )
+
+        current_label = "xf0"
+        for i in range(2, n):
+            next_label = f"xf{i-1}"
+            # offset for chained xfades
+            filter_parts.append(
+                f"[{current_label}][{i}]xfade=transition=dissolve:"
+                f"duration={xfade_duration}[{next_label}]"
+            )
+            current_label = next_label
+
+        filter_complex = ";".join(filter_parts)
+
+        cmd = [
+            "ffmpeg", "-y",
+        ] + inputs + [
+            "-filter_complex", filter_complex,
+            "-map", f"[{current_label}]",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-pix_fmt", "yuv420p", "-an",
+            output_video,
+        ]
+
+        self.log_lines.append(
+            f"[V1.6.1] xfade pipeline: {n} segments, "
+            f"dissolve={xfade_duration}s"
+        )
+        return cmd
+
     # -- 4. build_transition_filter -----------------------------------------
 
     def build_transition_filter(self,
@@ -367,6 +483,94 @@ class RenderOrchestrationEngine:
             return output_audio
         self.log_lines.append(f"[FAIL] Audio rc={rc}")
         return None
+
+    # -- 5b. build_real_audio_v1_6_1 (narration + BGM + mix) --------------
+
+    def build_real_audio_v1_6_1(self,
+                                 topic: str,
+                                 duration: float,
+                                 output_dir: str
+                                 ) -> Optional[str]:
+        """V1.6.1 real audio pipeline:
+
+        1. Generate narration text via copywriter_engine
+        2. TTS: gTTS text → narration.mp3
+        3. BGM: silent WAV as placeholder
+        4. Mix: narration(1.0) + bgm(0.1) → mixed AAC
+        5. Return path to mixed audio file
+
+        Falls back to synthetic sine wave if gTTS is unavailable.
+        """
+        if not _gTTS_available or not topic:
+            self.log_lines.append(
+                "[V1.6.1] gTTS unavailable or no topic — falling back to sine"
+            )
+            audio_path = os.path.join(output_dir, "_audio.aac")
+            return self.build_audio_track(duration, audio_path)
+
+        os.makedirs(output_dir, exist_ok=True)
+
+        # 1. Generate narration text
+        try:
+            sys.path.insert(0, os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                "v1_6_input_supply_layer",
+            ))
+            from copywriter_engine import CopywriterEngine
+            cw = CopywriterEngine()
+            narration = cw.generate_narration_only(topic)
+            self.log_lines.append(
+                f"[V1.6.1] Narration: {len(narration)} chars, topic={topic}"
+            )
+        except Exception as e:
+            self.log_lines.append(f"[V1.6.1] Copywriter error: {e}")
+            audio_path = os.path.join(output_dir, "_audio.aac")
+            return self.build_audio_track(duration, audio_path)
+
+        # 2. TTS: gTTS text → narration.mp3
+        narration_mp3 = os.path.join(output_dir, "narration.mp3")
+        try:
+            tts = _gTTS(text=narration, lang="zh-cn", slow=False)
+            tts.save(narration_mp3)
+            self.log_lines.append(f"[V1.6.1] TTS saved: {narration_mp3}")
+        except Exception as e:
+            self.log_lines.append(f"[V1.6.1] TTS error: {e}")
+            audio_path = os.path.join(output_dir, "_audio.aac")
+            return self.build_audio_track(duration, audio_path)
+
+        # 3. BGM: silent placeholder WAV
+        bgm_wav = os.path.join(output_dir, "bgm_silence.wav")
+        bgm_cmd = [
+            "ffmpeg", "-y",
+            "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono",
+            "-t", str(duration),
+            "-c:a", "pcm_s16le",
+            bgm_wav,
+        ]
+        rc, _, _ = run_ffmpeg(bgm_cmd, self.log_lines)
+        if rc != 0:
+            self.log_lines.append("[V1.6.1] BGM gen failed, using narration only")
+            return narration_mp3
+
+        # 4. Mix: narration(1.0) + bgm(0.1) → mixed AAC
+        mixed_aac = os.path.join(output_dir, "_mixed.aac")
+        mix_cmd = [
+            "ffmpeg", "-y",
+            "-i", narration_mp3,
+            "-i", bgm_wav,
+            "-filter_complex",
+            "[0:a]volume=1.0[v];[1:a]volume=0.1[b];[v][b]amix=inputs=2:duration=first[a]",
+            "-map", "[a]",
+            "-c:a", "aac", "-b:a", "128k",
+            mixed_aac,
+        ]
+        rc, _, _ = run_ffmpeg(mix_cmd, self.log_lines)
+        if rc == 0 and os.path.exists(mixed_aac) and os.path.getsize(mixed_aac) > 0:
+            self.log_lines.append(f"[V1.6.1] Mixed audio: {mixed_aac}")
+            return mixed_aac
+
+        self.log_lines.append("[V1.6.1] Mix failed, falling back to narration only")
+        return narration_mp3
 
     # -- 6. build_subtitle_filter -------------------------------------------
 
@@ -423,11 +627,18 @@ class RenderOrchestrationEngine:
 
     def execute_render(self,
                        timeline: List[Dict[str, Any]],
-                       test_mode: bool = False
+                       test_mode: bool = False,
+                       topic: str = "",
                        ) -> Dict[str, Any]:
-        """Main entry: complete render pipeline."""
+        """Main entry: complete render pipeline.
+
+        Args:
+            timeline: execution timeline from upstream engine
+            test_mode: use synthetic segments instead of real assets
+            topic: V1.6.1 narration topic (e.g. "杭州"); empty=legacy audio
+        """
         self.log_lines = []
-        self.log_lines.append("=== Render Orchestration Engine V1.5.7 ===")
+        self.log_lines.append("=== Render Orchestration Engine V1.6.1 ===")
         self.log_lines.append(
             f"Timestamp: {datetime.now(timezone.utc).isoformat()}"
         )
@@ -475,16 +686,29 @@ class RenderOrchestrationEngine:
                 "total_duration": total_dur,
             }
 
-        # 3. Concat pipeline
+        # 3. Concat pipeline — V1.6.1: try xfade first, fallback to hard cut
         concat_video = os.path.join(self.output_dir, "_concat_video.mp4")
-        concat_cmd = self.build_ffmpeg_concat_pipeline(
-            segments, segment_paths, concat_video
-        )
 
+        # P1-2: xfade dissolve primary path
+        xfade_cmd = self.build_xfade_concat_pipeline(
+            segment_paths, concat_video, TRANSITION_DURATION
+        )
         concat_ok = False
-        if concat_cmd:
-            rc, _, _ = run_ffmpeg(concat_cmd, self.log_lines)
+        if xfade_cmd:
+            rc, _, _ = run_ffmpeg(xfade_cmd, self.log_lines)
             concat_ok = (rc == 0)
+            if not concat_ok:
+                self.log_lines.append(
+                    "[V1.6.1] xfade failed, falling back to hard-cut concat"
+                )
+
+        if not concat_ok:
+            concat_cmd = self.build_ffmpeg_concat_pipeline(
+                segments, segment_paths, concat_video
+            )
+            if concat_cmd:
+                rc, _, _ = run_ffmpeg(concat_cmd, self.log_lines)
+                concat_ok = (rc == 0)
 
         if not concat_ok:
             log_path = self._write_log()
@@ -506,9 +730,14 @@ class RenderOrchestrationEngine:
                 "total_duration": total_dur,
             }
 
-        # 4. Audio track
-        audio_path = os.path.join(self.output_dir, "_audio.aac")
-        audio_file = self.build_audio_track(total_dur, audio_path)
+        # 4. Audio track — V1.6.1: real narration + BGM pipeline
+        if topic:
+            audio_file = self.build_real_audio_v1_6_1(
+                topic, total_dur, self.output_dir
+            )
+        else:
+            audio_path = os.path.join(self.output_dir, "_audio.aac")
+            audio_file = self.build_audio_track(total_dur, audio_path)
 
         video_with_audio = os.path.join(self.output_dir, "_with_audio.mp4")
         if audio_file and os.path.exists(audio_file):
@@ -539,6 +768,14 @@ class RenderOrchestrationEngine:
             json.dump(timeline_map, f, ensure_ascii=False, indent=2)
 
         validation = self.validate_output(final_path)
+
+        # P1-5: Black frame detection
+        black_frames = self.detect_black_frames(final_path)
+        if black_frames:
+            self.log_lines.append(
+                f"[V1.6.1] ⚠ Black frames: {len(black_frames)} segments"
+            )
+
         log_path = self._write_log()
 
         return {
@@ -553,6 +790,7 @@ class RenderOrchestrationEngine:
             "ffmpeg_log_path": log_path,
             "validation": validation,
             "total_duration": total_dur,
+            "black_frames": black_frames,
         }
 
     def _cmd_count(self) -> int:
@@ -750,12 +988,70 @@ class RenderOrchestrationEngine:
             },
         }
 
+    # -- 8c. black_detect (V1.6.1 P1-5) -----------------------------------
+
+    def detect_black_frames(self, video_path: str) -> List[Dict[str, Any]]:
+        """P1-5: Run ffmpeg blackdetect filter on final video.
+
+        Returns list of {start, end, duration} for black segments.
+        """
+        if not video_path or not os.path.exists(video_path):
+            return []
+
+        try:
+            cmd = [
+                "ffmpeg", "-y",
+                "-i", video_path,
+                "-vf", "blackdetect=d=0.5:pix_th=0.10",
+                "-an", "-f", "null", "-",
+            ]
+            proc = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=120,
+            )
+            # Scan stderr for blackdetect lines
+            black_segments: List[Dict[str, Any]] = []
+            for line in proc.stderr.split("\n"):
+                if "black_start" in line:
+                    import re
+                    start_m = re.search(r"black_start:([\d.]+)", line)
+                    end_m = re.search(r"black_end:([\d.]+)", line)
+                    dur_m = re.search(r"black_duration:([\d.]+)", line)
+                    if start_m:
+                        seg = {
+                            "start": float(start_m.group(1)),
+                            "end": float(end_m.group(1)) if end_m else 0.0,
+                            "duration": float(dur_m.group(1)) if dur_m else 0.0,
+                        }
+                        black_segments.append(seg)
+
+            if black_segments:
+                self.log_lines.append(
+                    f"[V1.6.1] Black frames detected: "
+                    f"{len(black_segments)} segments"
+                )
+                for bs in black_segments:
+                    self.log_lines.append(
+                        f"  black: {bs['start']:.2f}s-{bs['end']:.2f}s "
+                        f"(dur={bs['duration']:.2f}s)"
+                    )
+            else:
+                self.log_lines.append("[V1.6.1] Black detect: clean (no black frames)")
+
+            return black_segments
+
+        except subprocess.TimeoutExpired:
+            self.log_lines.append("[V1.6.1] Black detect timed out")
+            return []
+        except Exception as e:
+            self.log_lines.append(f"[V1.6.1] Black detect error: {e}")
+            return []
+
     # -- 9. generate_report -------------------------------------------------
 
     def generate_report(self, result: Dict[str, Any]) -> Dict[str, Any]:
         validation = result.get("validation", {})
         return {
-            "version": "1.5.7",
+            "version": "1.6.1",
             "engine": "render-orchestration-engine",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "pipeline_position": (
@@ -858,25 +1154,68 @@ if __name__ == "__main__":
     output_dir = os.path.join(_root, "output", "render")
     ensure_dir(output_dir)
 
-    # 3. Render
-    print("[Render-Engine] Executing render pipeline ...")
+    # 3. Render — V1.6.1: real assets + narration audio pipeline
+    print("[Render-Engine] Executing render pipeline (V1.6.1) ...")
     engine = RenderOrchestrationEngine(output_dir=output_dir)
-    result = engine.execute_render(execution_timeline, test_mode=False)
+    result = engine.execute_render(execution_timeline, test_mode=False, topic="杭州")
 
-    # 4. Report
+    # 4. Copy final output to named deliverable
+    final_src = result.get("final_video", "")
+    deliverable = os.path.join(_root, "output", "hangzhou_final_v1.6.1.mp4")
+    if final_src and os.path.exists(final_src):
+        shutil.copy2(final_src, deliverable)
+        print(f"[Render-Engine] Deliverable: {deliverable}")
+
+    # 5. Black frame detection (P1-5)
+    if final_src and os.path.exists(final_src):
+        black_result = engine.detect_black_frames(final_src)
+        result["black_frames"] = black_result
+        if black_result:
+            print(f"[Render-Engine] P1-5 Black frames detected: {black_result}")
+
+    # 6. Keyframe extraction + PIL validation
+    frames_dir = os.path.join(output_dir, "hangzhou_frames")
+    ensure_dir(frames_dir)
+    frame_to_extract = [2, 5, 15, 25]
+    for t in frame_to_extract:
+        frame_path = os.path.join(frames_dir, f"frame_{t:02d}s_v1_6_1.png")
+        extract_cmd = [
+            "ffmpeg", "-y", "-ss", str(t), "-i", final_src,
+            "-vframes", "1", "-q:v", "2", frame_path,
+        ]
+        subprocess.run(extract_cmd, capture_output=True)
+        if os.path.exists(frame_path):
+            sz = os.path.getsize(frame_path)
+            print(f"[Render-Engine] Keyframe {t}s: {sz} bytes")
+
+    # PIL pixel std validation
+    try:
+        from PIL import Image
+        import numpy as np
+        for t in frame_to_extract:
+            frame_path = os.path.join(frames_dir, f"frame_{t:02d}s_v1_6_1.png")
+            if os.path.exists(frame_path):
+                img = Image.open(frame_path).convert("RGB")
+                arr = np.array(img, dtype=np.float64)
+                std_val = float(np.std(arr))
+                print(f"[Render-Engine] Frame {t}s pixel_std={std_val:.1f} {'PASS' if std_val > 10 else 'FAIL'}")
+    except ImportError:
+        print("[Render-Engine] PIL/NumPy unavailable, skipping pixel std")
+
+    # 7. Report
     report = engine.generate_report(result)
     report_path = os.path.join(output_dir, "render_orchestration_report.json")
     with open(report_path, "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
 
-    # 5. Summary
+    # 8. Summary
     print(f"\n{'='*60}")
     print(f"  Render Orchestration Engine — V{report['version']}")
     print(f"{'='*60}")
     print(f"  Segments generated:    {report['segments_generated']}")
     print(f"  Transitions applied:   {report['transitions_applied']}")
     print(f"  FFmpeg commands:       {report['ffmpeg_command_count']}")
-    print(f"  Final video:           {report['output_files']['final_video']}")
+    print(f"  Final video:           {deliverable}")
     vv = report["validation"]
     print(f"  Validation: res={vv.get('resolution_match')} "
           f"fps={vv.get('fps_match')} codec={vv.get('codec_match')} "
