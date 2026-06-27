@@ -128,19 +128,30 @@ class SessionPoolManager:
         harvester_paths = [
             os.path.join(
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                "harvester_engine", "runtime", "session_store.json",
+            ),
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                 "harvester_engine", "session_store.json",
             ),
         ]
 
+        MIN_FILE_SIZE = 1000  # skip empty templates (<1KB)
         imported = 0
         for hp in harvester_paths:
             if not os.path.exists(hp):
                 continue
+            if os.path.getsize(hp) < MIN_FILE_SIZE:
+                continue
             try:
                 with open(hp, "r", encoding="utf-8") as f:
                     store = json.load(f)
-                sessions_data = store.get("sessions", {})
+                # store format: {platform: {status, cookies, ...}}
+                # May also be wrapped as {"sessions": {...}}
+                sessions_data = store.get("sessions", store)
                 for platform, info in sessions_data.items():
+                    if not isinstance(info, dict):
+                        continue
                     if info.get("status") != "missing":
                         # Register as active if not missing
                         self.register_session(

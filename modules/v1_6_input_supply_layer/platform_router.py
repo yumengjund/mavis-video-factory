@@ -13,12 +13,12 @@ class PlatformRouter:
     """Decide which social platforms to query for a given content type."""
 
     ROUTE_TABLE: Dict[str, List[str]] = {
-        "city_night": ["xiaohongshu", "douyin"],
-        "street_food": ["douyin", "bilibili"],
-        "product_review": ["bilibili", "douyin"],
-        "hot_trend": ["weibo", "douyin"],
+        "city_night": ["bilibili", "xiaohongshu", "weibo"],
+        "street_food": ["bilibili", "xiaohongshu", "douyin"],
+        "product_review": ["bilibili", "xiaohongshu", "douyin"],
+        "hot_trend": ["weibo", "bilibili", "douyin"],
         "travel_vlog": ["xiaohongshu", "bilibili"],
-        "nightlife": ["douyin", "xiaohongshu", "weibo"],
+        "nightlife": ["bilibili", "xiaohongshu", "weibo"],
         "architecture": ["xiaohongshu", "bilibili"],
     }
 
