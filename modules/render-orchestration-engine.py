@@ -49,6 +49,8 @@ XFADE_MAP = {
 }
 
 TRANSITION_DURATION = 0.3  # seconds (V1.6.1: reduced from 0.5 for tighter crossfade)
+TRANSITION_REGULAR = 0.4    # V1.6.3: standard dissolve between same-tone segments
+TRANSITION_GROUP_BOUNDARY = 0.6  # V1.6.3: longer transition at tone group boundaries
 
 
 # ---------------------------------------------------------------------------
@@ -237,22 +239,140 @@ class RenderOrchestrationEngine:
 
         return paths
 
+    # -- 2b++. V1.6.3 tone analysis ----------------------------------------
+
+    def _analyze_tone_groups(self, asset_files: List[str]) -> Dict[str, str]:
+        """V1.6.3: Analyze each asset's dominant color tone.
+
+        Uses ffmpeg to extract frame 0 (post-trim equivalent at 0.5s),
+        then PIL to compute RGB averages. Classifies as warm/cool/dark.
+
+        Returns: dict {filepath: "warm"|"cool"|"dark"}
+        """
+        tone_map: Dict[str, str] = {}
+        self.log_lines.append("[V1.6.3] Tone analysis starting ...")
+        try:
+            from PIL import Image
+        except ImportError:
+            self.log_lines.append("[V1.6.3] PIL unavailable, tone grouping skipped")
+            return tone_map
+
+        for i, src in enumerate(asset_files):
+            try:
+                # Extract frame at 0.5s (skip leader) as raw RGB24
+                proc = subprocess.run(
+                    ["ffmpeg", "-y", "-ss", "0.5", "-i", src,
+                     "-vframes", "1", "-f", "rawvideo",
+                     "-pix_fmt", "rgb24", "-s", "160x90", "-"],
+                    capture_output=True, timeout=15,
+                )
+                if proc.returncode != 0 or not proc.stdout:
+                    tone_map[src] = "cool"
+                    continue
+
+                img = Image.frombytes("RGB", (160, 90), proc.stdout)
+                # Sample every 2nd pixel for speed
+                pixels = list(img.getdata())[::2]
+                if not pixels:
+                    tone_map[src] = "cool"
+                    continue
+
+                r_sum = sum(p[0] for p in pixels) / len(pixels)
+                g_sum = sum(p[1] for p in pixels) / len(pixels)
+                b_sum = sum(p[2] for p in pixels) / len(pixels)
+                brightness = (r_sum + g_sum + b_sum) / 3
+
+                if brightness < 50:
+                    tone = "dark"
+                elif r_sum > b_sum and r_sum > g_sum and r_sum > 100:
+                    tone = "warm"
+                elif b_sum > r_sum and b_sum > g_sum:
+                    tone = "cool"
+                else:
+                    tone = "warm" if r_sum > g_sum else "cool"
+
+                tone_map[src] = tone
+                self.log_lines.append(
+                    f"[V1.6.3] Tone {os.path.basename(src)}: "
+                    f"R={r_sum:.0f} G={g_sum:.0f} B={b_sum:.0f} "
+                    f"br={brightness:.0f} → {tone}"
+                )
+            except Exception as e:
+                self.log_lines.append(f"[V1.6.3] Tone skip {src}: {e}")
+                tone_map[src] = "cool"
+
+        self.log_lines.append(
+            f"[V1.6.3] Tone groups: "
+            f"warm={sum(1 for v in tone_map.values() if v=='warm')} "
+            f"cool={sum(1 for v in tone_map.values() if v=='cool')} "
+            f"dark={sum(1 for v in tone_map.values() if v=='dark')}"
+        )
+        return tone_map
+
+    def _reorder_segments_by_tone(
+        self,
+        segments: List[Dict[str, Any]],
+        asset_sources: List[str],
+        tone_map: Dict[str, str],
+    ) -> List[Dict[str, Any]]:
+        """V1.6.3: Reorder segments to group by tone.
+
+        Strategy: sort tones warm→cool→dark, group transitions get 0.6s,
+        within-group transitions get 0.4s.
+        Adds 'transition_dur' field to each segment.
+        """
+        if not tone_map or len(tone_map) < 3:
+            # Insufficient tone data; keep original order
+            for seg in segments:
+                seg["transition_dur"] = TRANSITION_REGULAR
+            return segments
+
+        # Build (index, segment, tone) tuples
+        indexed = []
+        for i, seg in enumerate(segments):
+            src = asset_sources[i] if i < len(asset_sources) else ""
+            tone = tone_map.get(src, "cool")
+            indexed.append((i, seg, tone))
+
+        tone_order = {"warm": 0, "cool": 1, "dark": 2}
+        indexed.sort(key=lambda x: tone_order.get(x[2], 99))
+
+        reordered = []
+        prev_tone = None
+        for _, seg, tone in indexed:
+            if prev_tone is not None and tone != prev_tone:
+                seg["transition_dur"] = TRANSITION_GROUP_BOUNDARY
+            else:
+                seg["transition_dur"] = TRANSITION_REGULAR
+            seg["_tone_group"] = tone
+            reordered.append(seg)
+
+        self.log_lines.append(
+            f"[V1.6.3] Segments reordered by tone: "
+            f"{len(reordered)} segments, "
+            f"{sum(1 for s in reordered if s.get('transition_dur')==TRANSITION_GROUP_BOUNDARY)} group boundaries"
+        )
+        return reordered
+
     # -- 2b. compile_real_segments ------------------------------------------
 
     def compile_real_segments(self,
                               segments: List[Dict[str, Any]]
                               ) -> List[str]:
-        """V1.6.1 real mode: preprocess assets and cut segments.
+        """V1.6.3 real mode: preprocess assets and cut segments.
 
-        Per-asset preprocessing (P1-1):
-          - Trim 0.5s from start (avoid black/leader frames)
-          - Scale + pad to 1080×1920, force 30fps
-          - Skip segments shorter than 1.0s
+        P1-1 (v1.6.3): Trim 0.5s from BOTH start and end.
+        P1-3: Scale + pad to 1080×1920, force 30fps, color balance.
+        P1-4: used_sources set dedup.
+        P2-2: watermark crop when enabled.
 
-        Dedup (P1-4): used_sources set prevents same asset reuse.
+        V1.6.3 NEW:
+          - Blackdetect: skip segments whose source is pure black
+          - Discard segments shorter than 0.8s after trim
+          - Tone grouping: reorder segments by warm/cool/dark
         """
         paths: List[str] = []
-        used_sources: set = set()  # P1-4: dedup
+        used_sources: set = set()
         assets_dir = os.path.join(self.output_dir, "..", "v1_6_assets")
         assets_dir = os.path.abspath(assets_dir)
 
@@ -266,17 +386,20 @@ class RenderOrchestrationEngine:
 
         if not asset_files:
             self.log_lines.append(
-                "[WARN] No real assets found in assets/, falling back to synthetic"
+                "[WARN] No real assets found, falling back to synthetic"
             )
             return self.generate_synthetic_segments(segments)
 
-        # V1.6.1: Segment preprocessing filter chain
-        # P1-1: trim 0.5s start + scale 1080×1920 + 30fps
-        # P1-3: color balance (warm tone, documentary style)
-        # P2-2: watermark crop (scale 1.05 then crop center) when enabled
+        # V1.6.3: Tone grouping
+        tone_map = self._analyze_tone_groups(asset_files)
+        asset_sources = []  # will track which asset each segment uses
+        segments = self._reorder_segments_by_tone(
+            segments, asset_sources, tone_map
+        )
+
+        # V1.6.3: Preprocessing filter chain
         if self.watermark_crop:
-            # P2-2: scale up 5%, crop back to 1080x1920 centered → trims edges
-            self.log_lines.append("[V1.6.1] Watermark crop enabled")
+            self.log_lines.append("[V1.6.3] Watermark crop enabled")
             preprocess_vf = (
                 f"scale={int(self.width*1.05)}:{int(self.height*1.05)}:"
                 "force_original_aspect_ratio=decrease,"
@@ -295,15 +418,19 @@ class RenderOrchestrationEngine:
                 "eq=saturation=1.2:contrast=1.05:brightness=0.02"
             )
 
-        # Round-robin assignment of assets to segments
         for i, seg in enumerate(segments):
             role = seg["role"]
             clip_id = seg["clip_id"]
-            duration = max(seg["duration"], 1.0)  # P1-1: minimum 1.0s
+            raw_duration = max(float(seg["duration"]), 1.5)
+            # V1.6.3: Compensate for xfade overlap (each dissolve reduces total by its duration)
+            total_segs = len(segments)
+            if total_segs > 1:
+                avg_overlap = (total_segs - 1) * TRANSITION_REGULAR / total_segs
+                raw_duration += avg_overlap  # add back what xfade will consume
             out_name = f"seg_{i:03d}_{role}_{clip_id}.mp4"
             out_path = os.path.join(self.segment_dir, out_name)
 
-            # P1-4: pick next unused source
+            # Pick next unused source
             src = None
             for candidate in asset_files:
                 if candidate not in used_sources:
@@ -311,17 +438,46 @@ class RenderOrchestrationEngine:
                     used_sources.add(candidate)
                     break
             if src is None:
-                # All sources used once; reset for second pass
                 used_sources.clear()
                 src = asset_files[i % len(asset_files)]
                 used_sources.add(src)
 
-            # P1-1: trim 0.5s from start to avoid leader/black frames
-            cmd = [
+            asset_sources.append(src)
+
+            # V1.6.3: Trim 0.5s from start (leader/black frame removal)
+            # End trim is implicit: we request exactly `duration` seconds from start offset
+            effective_dur = raw_duration - 0.5  # -ss offset already handles start trim
+
+            # V1.6.3: Discard if effective < 0.8s
+            if effective_dur < 0.8:
+                self.log_lines.append(
+                    f"[V1.6.3] SKIP seg_{i:03d}: effective_dur={effective_dur:.1f}s < 0.8s"
+                )
+                continue
+
+            # V1.6.3: Blackdetect pre-check on source
+            bd_cmd = [
                 "ffmpeg", "-y",
                 "-ss", "0.5",
                 "-i", src,
-                "-t", str(duration),
+                "-t", str(effective_dur),
+                "-vf", "blackdetect=d=0.3:pix_th=0.10",
+                "-f", "null", "-",
+            ]
+            bd_rc, bd_out, bd_err = run_ffmpeg(bd_cmd, [])
+            bd_text = (bd_err or "") + (bd_out or "")
+            if "black_start" in bd_text or "black_duration" in bd_text:
+                self.log_lines.append(
+                    f"[V1.6.3] BLACK seg_{i:03d}: source has black frames, skipping"
+                )
+                continue
+
+            # Build ffmpeg cut command with trim both ends
+            cmd = [
+                "ffmpeg", "-y",
+                "-ss", "0.5",           # trim start
+                "-i", src,
+                "-t", str(effective_dur),  # duration after both-end trim
                 "-c:v", "libx264",
                 "-preset", "ultrafast",
                 "-crf", "23",
@@ -336,12 +492,13 @@ class RenderOrchestrationEngine:
                 paths.append(out_path)
                 self.log_lines.append(
                     f"[OK] real seg_{i:03d}: {out_name} "
-                    f"from {os.path.basename(src)}"
+                    f"from {os.path.basename(src)} "
+                    f"(tone={seg.get('_tone_group','?')}, "
+                    f"tdur={seg.get('transition_dur',TRANSITION_REGULAR)}s)"
                 )
             else:
                 self.log_lines.append(
-                    f"[FAIL] real seg_{i:03d}: rc={rc}, "
-                    f"falling back to synthetic"
+                    f"[FAIL] real seg_{i:03d}: rc={rc}, falling back to synthetic"
                 )
                 fallback = self.generate_synthetic_segments([seg])
                 if fallback:
@@ -491,86 +648,117 @@ class RenderOrchestrationEngine:
                                  duration: float,
                                  output_dir: str
                                  ) -> Optional[str]:
-        """V1.6.1 real audio pipeline:
+        """V1.6.1 real audio pipeline (delegates to V1.6.3)."""
+        return self.build_real_audio_v1_6_3(topic, duration, output_dir)
 
-        1. Generate narration text via copywriter_engine
-        2. TTS: gTTS text → narration.mp3
-        3. BGM: silent WAV as placeholder
-        4. Mix: narration(1.0) + bgm(0.1) → mixed AAC
-        5. Return path to mixed audio file
+    def build_real_audio_v1_6_3(
+        self, topic: str, total_dur: float, output_dir: str
+    ) -> Optional[str]:
+        """V1.6.3: Real narration + BGM with ffmpeg atempo speed adjustment.
 
-        Falls back to synthetic sine wave if gTTS is unavailable.
+        Pipeline:
+          1. CopywriterEngine → segmented narration text + speed_factor
+          2. gTTS → raw narration MP3 (natural speed)
+          3. ffmpeg atempo → speed-adjusted narration
+          4. ffmpeg → silent BGM 30s
+          5. amix narration(vol=1.0) + bgm(vol=0.1) → final aac
         """
-        if not _gTTS_available or not topic:
-            self.log_lines.append(
-                "[V1.6.1] gTTS unavailable or no topic — falling back to sine"
-            )
-            audio_path = os.path.join(output_dir, "_audio.aac")
-            return self.build_audio_track(duration, audio_path)
-
-        os.makedirs(output_dir, exist_ok=True)
-
-        # 1. Generate narration text
         try:
+            import sys
             sys.path.insert(0, os.path.join(
                 os.path.dirname(os.path.abspath(__file__)),
                 "v1_6_input_supply_layer",
             ))
             from copywriter_engine import CopywriterEngine
-            cw = CopywriterEngine()
-            narration = cw.generate_narration_only(topic)
+            engine = CopywriterEngine()
+            result = engine.generate(topic)
+            narration_text = result["narration"]
+            char_count = result["char_count"]
+            speed_factor = engine.get_speed_factor(topic)
+            segments_info = result.get("segments", [])
+        except Exception as e:
+            self.log_lines.append(f"[V1.6.3] Copywriter failed: {e}")
+            audio_path = os.path.join(output_dir, "_audio.aac")
+            return self.build_audio_track(total_dur, audio_path)
+
+        self.log_lines.append(
+            f"[V1.6.3] Narration: {char_count} chars, "
+            f"segs={len(segments_info)}, speed={speed_factor}x"
+        )
+
+        os.makedirs(output_dir, exist_ok=True)
+        narration_raw = os.path.join(output_dir, "narration_raw.mp3")
+        narration_fast = os.path.join(output_dir, "narration.mp3")
+        bgm_path = os.path.join(output_dir, "bgm_silence.wav")
+        mixed_aac = os.path.join(output_dir, "_audio.aac")
+
+        # Step 1: gTTS raw synthesis
+        try:
+            tts = _gTTS(text=narration_text, lang="zh-cn", slow=False)
+            tts.save(narration_raw)
             self.log_lines.append(
-                f"[V1.6.1] Narration: {len(narration)} chars, topic={topic}"
+                f"[V1.6.3] gTTS raw: {os.path.getsize(narration_raw)/1024:.0f}KB"
             )
         except Exception as e:
-            self.log_lines.append(f"[V1.6.1] Copywriter error: {e}")
+            self.log_lines.append(f"[V1.6.3] gTTS failed: {e}")
             audio_path = os.path.join(output_dir, "_audio.aac")
-            return self.build_audio_track(duration, audio_path)
+            return self.build_audio_track(total_dur, audio_path)
 
-        # 2. TTS: gTTS text → narration.mp3
-        narration_mp3 = os.path.join(output_dir, "narration.mp3")
-        try:
-            tts = _gTTS(text=narration, lang="zh-cn", slow=False)
-            tts.save(narration_mp3)
-            self.log_lines.append(f"[V1.6.1] TTS saved: {narration_mp3}")
-        except Exception as e:
-            self.log_lines.append(f"[V1.6.1] TTS error: {e}")
-            audio_path = os.path.join(output_dir, "_audio.aac")
-            return self.build_audio_track(duration, audio_path)
+        # Step 2: ffmpeg atempo speed adjustment
+        safe_factor = max(0.5, min(2.0, speed_factor))
+        atempo_cmd = [
+            "ffmpeg", "-y",
+            "-i", narration_raw,
+            "-filter:a", f"atempo={safe_factor}",
+            "-c:a", "libmp3lame", "-q:a", "4",
+            narration_fast,
+        ]
+        rc, _, _ = run_ffmpeg(atempo_cmd, self.log_lines)
+        if rc != 0 or not os.path.exists(narration_fast):
+            self.log_lines.append("[V1.6.3] atempo failed, using raw TTS")
+            narration_fast = narration_raw
 
-        # 3. BGM: silent placeholder WAV
-        bgm_wav = os.path.join(output_dir, "bgm_silence.wav")
+        if os.path.exists(narration_fast):
+            self.log_lines.append(
+                f"[V1.6.3] atempo={safe_factor}x: "
+                f"{os.path.getsize(narration_fast)/1024:.0f}KB"
+            )
+
+        # Step 3: Silent BGM
         bgm_cmd = [
             "ffmpeg", "-y",
-            "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono",
-            "-t", str(duration),
+            "-f", "lavfi",
+            "-i", f"anullsrc=r=44100:cl=mono",
+            "-t", str(total_dur),
             "-c:a", "pcm_s16le",
-            bgm_wav,
+            bgm_path,
         ]
-        rc, _, _ = run_ffmpeg(bgm_cmd, self.log_lines)
-        if rc != 0:
-            self.log_lines.append("[V1.6.1] BGM gen failed, using narration only")
-            return narration_mp3
+        run_ffmpeg(bgm_cmd, self.log_lines)
 
-        # 4. Mix: narration(1.0) + bgm(0.1) → mixed AAC
-        mixed_aac = os.path.join(output_dir, "_mixed.aac")
-        mix_cmd = [
-            "ffmpeg", "-y",
-            "-i", narration_mp3,
-            "-i", bgm_wav,
-            "-filter_complex",
-            "[0:a]volume=1.0[v];[1:a]volume=0.1[b];[v][b]amix=inputs=2:duration=first[a]",
-            "-map", "[a]",
-            "-c:a", "aac", "-b:a", "128k",
-            mixed_aac,
-        ]
-        rc, _, _ = run_ffmpeg(mix_cmd, self.log_lines)
-        if rc == 0 and os.path.exists(mixed_aac) and os.path.getsize(mixed_aac) > 0:
-            self.log_lines.append(f"[V1.6.1] Mixed audio: {mixed_aac}")
-            return mixed_aac
+        # Step 4: Mix narration + BGM
+        if os.path.exists(narration_fast) and os.path.exists(bgm_path):
+            mix_cmd = [
+                "ffmpeg", "-y",
+                "-i", narration_fast,
+                "-i", bgm_path,
+                "-filter_complex",
+                "[0:a]volume=1.0[a1];[1:a]volume=0.1[a2];"
+                "[a1][a2]amix=inputs=2:duration=first:dropout_transition=2[out]",
+                "-map", "[out]",
+                "-c:a", "aac", "-b:a", "128k",
+                mixed_aac,
+            ]
+            rc, _, _ = run_ffmpeg(mix_cmd, self.log_lines)
+            if rc == 0 and os.path.exists(mixed_aac):
+                self.log_lines.append(
+                    f"[V1.6.3] Mixed audio: "
+                    f"{os.path.getsize(mixed_aac)/1024:.0f}KB"
+                )
+                return mixed_aac
 
-        self.log_lines.append("[V1.6.1] Mix failed, falling back to narration only")
-        return narration_mp3
+        self.log_lines.append("[V1.6.3] Audio mix fallback")
+        audio_path = os.path.join(output_dir, "_audio.aac")
+        return self.build_audio_track(total_dur, audio_path)
 
     # -- 6. build_subtitle_filter -------------------------------------------
 
@@ -730,9 +918,9 @@ class RenderOrchestrationEngine:
                 "total_duration": total_dur,
             }
 
-        # 4. Audio track — V1.6.1: real narration + BGM pipeline
+        # 4. Audio track — V1.6.3: atempo real narration + BGM
         if topic:
-            audio_file = self.build_real_audio_v1_6_1(
+            audio_file = self.build_real_audio_v1_6_3(
                 topic, total_dur, self.output_dir
             )
         else:
@@ -1051,7 +1239,7 @@ class RenderOrchestrationEngine:
     def generate_report(self, result: Dict[str, Any]) -> Dict[str, Any]:
         validation = result.get("validation", {})
         return {
-            "version": "1.6.1",
+            "version": "1.6.3",
             "engine": "render-orchestration-engine",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "pipeline_position": (
@@ -1154,14 +1342,14 @@ if __name__ == "__main__":
     output_dir = os.path.join(_root, "output", "render")
     ensure_dir(output_dir)
 
-    # 3. Render — V1.6.1: real assets + narration audio pipeline
-    print("[Render-Engine] Executing render pipeline (V1.6.1) ...")
+    # 3. Render — V1.6.3: atempo TTS + tone-aware transitions
+    print("[Render-Engine] Executing render pipeline (V1.6.3) ...")
     engine = RenderOrchestrationEngine(output_dir=output_dir)
     result = engine.execute_render(execution_timeline, test_mode=False, topic="杭州")
 
     # 4. Copy final output to named deliverable
     final_src = result.get("final_video", "")
-    deliverable = os.path.join(_root, "output", "hangzhou_final_v1.6.1.mp4")
+    deliverable = os.path.join(_root, "output", "hangzhou_final_v1.6.3.mp4")
     if final_src and os.path.exists(final_src):
         shutil.copy2(final_src, deliverable)
         print(f"[Render-Engine] Deliverable: {deliverable}")
